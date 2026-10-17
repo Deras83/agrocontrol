@@ -1,0 +1,1 @@
+"""Funciones puras (Programación Funcional)."""
