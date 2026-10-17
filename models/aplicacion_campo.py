@@ -81,3 +81,5 @@ class AplicacionCampo:
         return (f"Aplicación {self.id}: {self._insumo.nombre} en {self._lote.nombre} | "
                 f"{self._dosis} {self._insumo.unidad_medida} | {self._fecha} | "
                 f"costo {self.costo_total()} | {estado}")
+
+    

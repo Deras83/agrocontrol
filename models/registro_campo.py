@@ -10,7 +10,7 @@ class RegistroCampo:
                    "fumigacion", "mantenimiento", "cosecha", "otro")
 
     def __init__(self, id, lote, actividad, descripcion="", fecha=None,
-                 horas_trabajadas=0.0, maquinaria=None):
+                 horas_trabajadas=0.0, maquinaria=None, completado=False):
         if not isinstance(lote, Lote):
             raise TypeError("lote debe ser un objeto Lote.")
         if maquinaria is not None and not isinstance(maquinaria, Maquinaria):
@@ -24,7 +24,7 @@ class RegistroCampo:
         self.horas_trabajadas = horas_trabajadas
         if maquinaria is not None and horas_trabajadas <= 0:
             raise ValueError("Si usas maquinaria, las horas trabajadas deben ser mayores a 0.")
-        self._completado = False
+        self._completado = completado
 
     # --- Getters y setters con validación ---
     @property
@@ -100,3 +100,5 @@ class RegistroCampo:
         detalle = f" - {self._descripcion}" if self._descripcion else ""
         return (f"Registro {self.id}: {self._actividad}{detalle} en {self._lote.nombre}"
                 f"{maquina} | {self._horas_trabajadas} h | {self._fecha} | {estado}")
+
+    

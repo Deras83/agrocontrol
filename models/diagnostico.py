@@ -102,3 +102,5 @@ class Diagnostico:
         if self.tiene_recomendacion():
             texto += f" -> {self._recomendacion}"
         return texto
+
+    

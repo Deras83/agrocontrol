@@ -69,3 +69,6 @@ class Cosecha:
         return (f"Cosecha {self.id}{cultivo} en {self._lote.nombre} | "
                 f"{self._toneladas} t | {self._fecha} | "
                 f"{self.rendimiento_por_ha()} t/ha")
+
+    
+    
