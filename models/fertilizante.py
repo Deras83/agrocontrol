@@ -15,6 +15,18 @@ class Fertilizante(Insumo):
         self._n, self._p, self._k = n, p, k
 
     @property
+    def n(self):
+        return self._n
+
+    @property
+    def p(self):
+        return self._p
+
+    @property
+    def k(self):
+        return self._k
+
+    @property
     def formula(self):
         return f"{self._n}-{self._p}-{self._k}"
 

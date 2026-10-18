@@ -3,13 +3,13 @@
 
 class Maquinaria:
     def __init__(self, id, nombre, vida_util_horas=5000, intervalo_mantenimiento=250,
-                 horas_uso=0.0):
+                 horas_uso=0.0, horas_ultimo_mantenimiento=0.0):
         self._id = id
         self.nombre = nombre
         self.vida_util_horas = vida_util_horas
         self.intervalo_mantenimiento = intervalo_mantenimiento
         self.horas_uso = horas_uso
-        self._horas_ultimo_mantenimiento = 0.0
+        self._horas_ultimo_mantenimiento = horas_ultimo_mantenimiento
 
     # --- Getters y setters con validación ---
     @property
@@ -55,6 +55,10 @@ class Maquinaria:
         if valor < 0:
             raise ValueError("Las horas de uso no pueden ser negativas.")
         self._horas_uso = valor
+
+    @property
+    def horas_ultimo_mantenimiento(self):
+        return self._horas_ultimo_mantenimiento
 
     # --- Comportamiento ---
     @property

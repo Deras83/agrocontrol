@@ -1,13 +1,8 @@
-"""Consultas CRUD parametrizadas para AgroControl."""
-import sys
-from datetime import date
-from pathlib import Path
+"""Consultas CRUD parametrizadas (SQL) y conversión fila <-> objeto."""
+from datetime import date, timedelta
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from database.db_connection import obtener_conexion as conectar
 from models.lote import Lote
 from models.cultivo import Cultivo
-from models.insumo import Insumo
 from models.fertilizante import Fertilizante
 from models.plaguicida import Plaguicida
 from models.semilla import Semilla
@@ -27,9 +22,30 @@ TABLAS_CON_ID = (
     "diagnosticos",
 )
 
-# ----------------------------------------------------------------- LOTES
+
+def siguiente_id(conn, tabla):
+    """Próximo id libre. El nombre de tabla no se puede parametrizar con '?',
+    por eso solo se aceptan nombres de una lista fija."""
+    if tabla not in TABLAS_CON_ID:
+        raise ValueError("Tabla no permitida.")
+    return conn.execute(f"SELECT COALESCE(MAX(id), 0) + 1 FROM {tabla}").fetchone()[0]
+
+
+def eliminar_por_id(conn, tabla, id):
+    if tabla not in TABLAS_CON_ID:
+        raise ValueError("Tabla no permitida.")
+    with conn:
+        conn.execute(f"DELETE FROM {tabla} WHERE id = ?", (id,))
+
+
+# ---------------------------------------------------------------- LOTES
+def fila_a_lote(fila):
+    return Lote(fila["id"], fila["nombre"], fila["area_ha"], fila["tipo_suelo"],
+                fila["ph"], fila["humedad_actual"])
+
+
 def guardar_lote(conn, lote):
-    lote_id = getattr(lote, "id", getattr(lote, "_id", None))
+    """Inserta el lote, o actualiza sus datos si ya existe ese id."""
     with conn:
         conn.execute(
             "INSERT INTO lotes (id, nombre, area_ha, tipo_suelo, ph, humedad_actual) "
@@ -37,114 +53,29 @@ def guardar_lote(conn, lote):
             "ON CONFLICT(id) DO UPDATE SET nombre = excluded.nombre, "
             "area_ha = excluded.area_ha, tipo_suelo = excluded.tipo_suelo, "
             "ph = excluded.ph, humedad_actual = excluded.humedad_actual",
-            (lote_id, lote.nombre, lote.hectareas, lote.tipo_suelo, lote.ph, lote.humedad_actual),
+            (lote.id, lote.nombre, lote.hectareas, lote.tipo_suelo,
+             lote.ph, lote.humedad_actual),
         )
+
+
+def obtener_lote(conn, id):
+    fila = conn.execute("SELECT * FROM lotes WHERE id = ?", (id,)).fetchone()
+    return fila_a_lote(fila) if fila else None
+
 
 def listar_lotes(conn):
-    filas = conn.execute("SELECT * FROM lotes ORDER BY id").fetchall()
-    return [
-        Lote(f["id"], f["nombre"], f["area_ha"], f["tipo_suelo"], f["ph"], f["humedad_actual"])
-        for f in filas
-    ]
+    return [fila_a_lote(f) for f in conn.execute("SELECT * FROM lotes ORDER BY id")]
 
-# ------------------------------------------------------------- INSUMOS
-def guardar_insumo(conn, insumo):
-    insumo_id = getattr(insumo, "id", getattr(insumo, "_id", None))
-    tipo = getattr(insumo, "tipo", getattr(insumo, "_tipo", ""))
-    
-    n = getattr(insumo, "n", getattr(insumo, "_n", None))
-    p = getattr(insumo, "p", getattr(insumo, "_p", None))
-    k = getattr(insumo, "k", getattr(insumo, "_k", None))
-    carencia = getattr(insumo, "periodo_carencia_dias", getattr(insumo, "_periodo_carencia_dias", None))
-    germinacion = getattr(insumo, "tasa_germinacion", getattr(insumo, "_tasa_germinacion", None))
 
-    with conn:
-        cursor = conn.execute(
-            "INSERT INTO inventario_insumos (id, nombre_producto, tipo, stock, unidad, costo_unitario, dosis_por_ha, n, p, k, periodo_carencia_dias, tasa_germinacion) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
-            "ON CONFLICT(nombre_producto) DO UPDATE SET stock = excluded.stock, "
-            "unidad = excluded.unidad, costo_unitario = excluded.costo_unitario, "
-            "dosis_por_ha = excluded.dosis_por_ha, n = excluded.n, p = excluded.p, k = excluded.k, "
-            "periodo_carencia_dias = excluded.periodo_carencia_dias, tasa_germinacion = excluded.tasa_germinacion",
-            (
-                insumo_id,
-                insumo.nombre,
-                tipo,
-                insumo.cantidad_disponible,
-                insumo.unidad_medida,
-                insumo.costo_unitario,
-                insumo.dosis_por_ha,
-                n, p, k, carencia, germinacion
-            ),
-        )
-        # Asignar el ID generado/existente de la BD al objeto insumo si era None
-        if insumo_id is None:
-            fila = conn.execute("SELECT id FROM inventario_insumos WHERE nombre_producto = ?", (insumo.nombre,)).fetchone()
-            if fila:
-                new_id = fila["id"]
-                if hasattr(insumo, "_id"):
-                    insumo._id = new_id
-                else:
-                    insumo.id = new_id
+def eliminar_lote(conn, id):
+    eliminar_por_id(conn, "lotes", id)
 
-def fila_a_insumo(fila):
-    tipo = fila["tipo"]
-    if tipo == "fertilizante":
-        return Fertilizante(
-            fila["nombre_producto"], fila["stock"],
-            fila["n"] or 0, fila["p"] or 0, fila["k"] or 0,
-            costo_unitario=fila["costo_unitario"], dosis_por_ha=fila["dosis_por_ha"]
-        )
-    elif tipo == "plaguicida":
-        return Plaguicida(
-            fila["nombre_producto"], fila["stock"],
-            fila["periodo_carencia_dias"] or 0,
-            costo_unitario=fila["costo_unitario"], dosis_por_ha=fila["dosis_por_ha"]
-        )
-    elif tipo == "semilla":
-        return Semilla(
-            fila["nombre_producto"], fila["stock"],
-            fila["tasa_germinacion"] or 0,
-            costo_unitario=fila["costo_unitario"], dosis_por_ha=fila["dosis_por_ha"]
-        )
-    return Insumo(fila["nombre_producto"], tipo, fila["stock"], fila["unidad"], fila["costo_unitario"], fila["dosis_por_ha"])
-
-# ----------------------------------------------------------- MAQUINARIA
-def guardar_maquinaria(conn, maquina):
-    maquina_id = getattr(maquina, "id", getattr(maquina, "_id", None))
-    horas_ult = getattr(maquina, "horas_ultimo_mantenimiento", getattr(maquina, "_horas_ultimo_mantenimiento", 0.0))
-
-    with conn:
-        conn.execute(
-            "INSERT INTO maquinaria (id, nombre, vida_util_horas, intervalo_mantenimiento, horas_uso, horas_ultimo_mantenimiento) "
-            "VALUES (?, ?, ?, ?, ?, ?) "
-            "ON CONFLICT(id) DO UPDATE SET nombre = excluded.nombre, "
-            "vida_util_horas = excluded.vida_util_horas, "
-            "intervalo_mantenimiento = excluded.intervalo_mantenimiento, "
-            "horas_uso = excluded.horas_uso, "
-            "horas_ultimo_mantenimiento = excluded.horas_ultimo_mantenimiento",
-            (
-                maquina_id,
-                maquina.nombre,
-                maquina.vida_util_horas,
-                maquina.intervalo_mantenimiento,
-                maquina.horas_uso,
-                horas_ult,
-            ),
-        )
-
-def listar_maquinarias(conn):
-    filas = conn.execute("SELECT * FROM maquinaria ORDER BY id").fetchall()
-    maquinas = []
-    for f in filas:
-        m = Maquinaria(f["id"], f["nombre"], f["vida_util_horas"], f["intervalo_mantenimiento"], f["horas_uso"])
-        m._horas_ultimo_mantenimiento = f["horas_ultimo_mantenimiento"]
-        maquinas.append(m)
-    return maquinas
 
 # ------------------------------------------------------------- CULTIVOS
 def guardar_cultivo(conn, lote_id, cultivo):
-    fecha_siembra = str(getattr(cultivo, "fecha_siembra", date.today().isoformat()))
+    """Un lote tiene un solo cultivo. En la base se guarda la fecha de siembra,
+    no los días: se calcula a partir de los días del objeto."""
+    fecha_siembra = date.today() - timedelta(days=cultivo.dias_desde_siembra)
     with conn:
         conn.execute(
             "INSERT INTO cultivos (lote_id, tipo_cultivo, variedad, fecha_siembra, etapa) "
@@ -152,79 +83,154 @@ def guardar_cultivo(conn, lote_id, cultivo):
             "ON CONFLICT(lote_id) DO UPDATE SET tipo_cultivo = excluded.tipo_cultivo, "
             "variedad = excluded.variedad, fecha_siembra = excluded.fecha_siembra, "
             "etapa = excluded.etapa",
-            (
-                lote_id,
-                cultivo.nombre,
-                cultivo.variedad,
-                fecha_siembra,
-                cultivo.etapa_fenologica,
-            ),
+            (lote_id, cultivo.nombre, cultivo.variedad,
+             fecha_siembra.isoformat(), cultivo.etapa_fenologica),
         )
+
 
 def cargar_cultivo(conn, lote_id):
     fila = conn.execute("SELECT * FROM cultivos WHERE lote_id = ?", (lote_id,)).fetchone()
     if not fila:
         return None
-    return Cultivo(fila["tipo_cultivo"], fila["variedad"], fila["etapa"], 30)
+    dias = max(0, (date.today() - date.fromisoformat(fila["fecha_siembra"])).days)
+    return Cultivo(fila["tipo_cultivo"], fila["variedad"], fila["etapa"], dias)
+
+
+# -------------------------------------------------------------- INSUMOS
+def fila_a_insumo(fila):
+    """Según la columna 'tipo' se construye la subclase correspondiente."""
+    comunes = (fila["nombre_producto"], fila["stock"])
+    extras = dict(unidad_medida=fila["unidad"], costo_unitario=fila["costo_unitario"],
+                  dosis_por_ha=fila["dosis_por_ha"])
+    if fila["tipo"] == "fertilizante":
+        return Fertilizante(*comunes, fila["n"], fila["p"], fila["k"], **extras)
+    if fila["tipo"] == "plaguicida":
+        return Plaguicida(*comunes, fila["periodo_carencia_dias"], **extras)
+    if fila["tipo"] == "semilla":
+        return Semilla(*comunes, fila["tasa_germinacion"], **extras)
+    raise ValueError(f"Tipo de insumo desconocido: {fila['tipo']}")
+
+
+def guardar_insumo(conn, insumo):
+    """Inserta el insumo, o actualiza stock y datos si ya existe ese nombre."""
+    n = p = k = carencia = germinacion = None
+    if isinstance(insumo, Fertilizante):
+        n, p, k = insumo.n, insumo.p, insumo.k
+    elif isinstance(insumo, Plaguicida):
+        carencia = insumo.periodo_carencia_dias
+    elif isinstance(insumo, Semilla):
+        germinacion = insumo.tasa_germinacion
+    else:
+        raise ValueError("Solo se pueden guardar Fertilizante, Plaguicida o Semilla.")
+    with conn:
+        conn.execute(
+            "INSERT INTO inventario_insumos (nombre_producto, tipo, stock, unidad, "
+            "costo_unitario, dosis_por_ha, n, p, k, periodo_carencia_dias, tasa_germinacion) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(nombre_producto) DO UPDATE SET tipo = excluded.tipo, "
+            "stock = excluded.stock, unidad = excluded.unidad, "
+            "costo_unitario = excluded.costo_unitario, dosis_por_ha = excluded.dosis_por_ha, "
+            "n = excluded.n, p = excluded.p, k = excluded.k, "
+            "periodo_carencia_dias = excluded.periodo_carencia_dias, "
+            "tasa_germinacion = excluded.tasa_germinacion",
+            (insumo.nombre, insumo.tipo, insumo.cantidad_disponible, insumo.unidad_medida,
+             insumo.costo_unitario, insumo.dosis_por_ha, n, p, k, carencia, germinacion),
+        )
+
+
+def obtener_insumo(conn, nombre):
+    fila = conn.execute("SELECT * FROM inventario_insumos WHERE nombre_producto = ?",
+                        (nombre,)).fetchone()
+    return fila_a_insumo(fila) if fila else None
+
+
+def listar_insumos(conn):
+    return [fila_a_insumo(f)
+            for f in conn.execute("SELECT * FROM inventario_insumos ORDER BY id")]
+
+
+def eliminar_insumo(conn, nombre):
+    with conn:
+        conn.execute("DELETE FROM inventario_insumos WHERE nombre_producto = ?", (nombre,))
+
+
+# ----------------------------------------------------------- MAQUINARIA
+def fila_a_maquinaria(fila):
+    return Maquinaria(fila["id"], fila["nombre"], fila["vida_util_horas"],
+                      fila["intervalo_mantenimiento"], fila["horas_uso"],
+                      fila["horas_ultimo_mantenimiento"])
+
+
+def guardar_maquinaria(conn, maquina):
+    with conn:
+        conn.execute(
+            "INSERT INTO maquinaria (id, nombre, vida_util_horas, intervalo_mantenimiento, "
+            "horas_uso, horas_ultimo_mantenimiento) VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET nombre = excluded.nombre, "
+            "vida_util_horas = excluded.vida_util_horas, "
+            "intervalo_mantenimiento = excluded.intervalo_mantenimiento, "
+            "horas_uso = excluded.horas_uso, "
+            "horas_ultimo_mantenimiento = excluded.horas_ultimo_mantenimiento",
+            (maquina.id, maquina.nombre, maquina.vida_util_horas,
+             maquina.intervalo_mantenimiento, maquina.horas_uso,
+             maquina.horas_ultimo_mantenimiento),
+        )
+
+
+def obtener_maquinaria(conn, id):
+    fila = conn.execute("SELECT * FROM maquinaria WHERE id = ?", (id,)).fetchone()
+    return fila_a_maquinaria(fila) if fila else None
+
+
+def listar_maquinarias(conn):
+    return [fila_a_maquinaria(f)
+            for f in conn.execute("SELECT * FROM maquinaria ORDER BY id")]
+
+
+def eliminar_maquinaria(conn, id):
+    eliminar_por_id(conn, "maquinaria", id)
+
 
 # ---------------------------------------------------------- APLICACIONES
-def guardar_aplicacion_campo(conn, aplicacion):
-    app_id = getattr(aplicacion, "id", getattr(aplicacion, "_id", None))
-    
-    # 1. Resolver Lote ID
-    lote = getattr(aplicacion, "lote", getattr(aplicacion, "_lote", None))
-    lote_id = getattr(lote, "id", getattr(lote, "_id", None)) if lote else None
-    if lote_id is None and lote and hasattr(lote, "nombre"):
-        fila_lote = conn.execute("SELECT id FROM lotes WHERE nombre = ?", (lote.nombre,)).fetchone()
-        if fila_lote:
-            lote_id = fila_lote["id"]
+def _id_insumo(conn, insumo):
+    fila = conn.execute("SELECT id FROM inventario_insumos WHERE nombre_producto = ?",
+                        (insumo.nombre,)).fetchone()
+    if not fila:
+        raise ValueError(f"El insumo '{insumo.nombre}' no está registrado en la base de datos.")
+    return fila["id"]
 
-    # 2. Resolver Insumo ID
-    insumo = getattr(aplicacion, "insumo", getattr(aplicacion, "_insumo", None))
-    insumo_id = getattr(insumo, "id", getattr(insumo, "_id", None)) if insumo else None
-    if insumo_id is None and insumo and hasattr(insumo, "nombre"):
-        fila_insumo = conn.execute("SELECT id FROM inventario_insumos WHERE nombre_producto = ?", (insumo.nombre,)).fetchone()
-        if fila_insumo:
-            insumo_id = fila_insumo["id"]
 
-    if insumo_id is None:
-        raise ValueError(f"El insumo '{getattr(insumo, 'nombre', 'desconocido')}' no está registrado en la base de datos.")
-
-    aplicada_val = 1 if getattr(aplicacion, "_aplicada", getattr(aplicacion, "aplicada", False)) else 0
-
+def guardar_aplicacion(conn, aplicacion):
+    """Guarda la aplicación y sincroniza el stock del insumo en la misma transacción."""
+    insumo_id = _id_insumo(conn, aplicacion.insumo)
     with conn:
+        conn.execute("UPDATE inventario_insumos SET stock = ? WHERE id = ?",
+                     (aplicacion.insumo.cantidad_disponible, insumo_id))
         conn.execute(
             "INSERT INTO aplicaciones_campo (id, lote_id, insumo_id, dosis, fecha, aplicada) "
             "VALUES (?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(id) DO UPDATE SET lote_id = excluded.lote_id, "
             "insumo_id = excluded.insumo_id, dosis = excluded.dosis, "
             "fecha = excluded.fecha, aplicada = excluded.aplicada",
-            (
-                app_id,
-                lote_id,
-                insumo_id,
-                aplicacion.dosis,
-                str(aplicacion.fecha),
-                aplicada_val,
-            ),
+            (aplicacion.id, aplicacion.lote.id, insumo_id, aplicacion.dosis,
+             aplicacion.fecha.isoformat(), int(aplicacion.aplicada)),
         )
 
+
+# Nombre anterior, por compatibilidad con código que ya lo use
+guardar_aplicacion_campo = guardar_aplicacion
+
+
 def listar_aplicaciones(conn, lotes_por_id, insumos_por_id):
+    """Recibe los objetos ya cargados para reutilizarlos (misma referencia)."""
     return [AplicacionCampo(f["id"], lotes_por_id[f["lote_id"]],
                             insumos_por_id[f["insumo_id"]], f["dosis"],
                             date.fromisoformat(f["fecha"]), bool(f["aplicada"]))
             for f in conn.execute("SELECT * FROM aplicaciones_campo ORDER BY id")]
 
+
 # ------------------------------------------------------------- COSECHAS
 def guardar_cosecha(conn, cosecha):
-    cos_id = getattr(cosecha, "id", getattr(cosecha, "_id", None))
-    lote = getattr(cosecha, "lote", getattr(cosecha, "_lote", None))
-    lote_id = getattr(lote, "id", getattr(lote, "_id", None)) if lote else None
-    if lote_id is None and lote and hasattr(lote, "nombre"):
-        fila = conn.execute("SELECT id FROM lotes WHERE nombre = ?", (lote.nombre,)).fetchone()
-        if fila:
-            lote_id = fila["id"]
-
     with conn:
         conn.execute(
             "INSERT INTO historial_cosechas (id, lote_id, toneladas_recolectadas, fecha_cosecha) "
@@ -232,43 +238,25 @@ def guardar_cosecha(conn, cosecha):
             "ON CONFLICT(id) DO UPDATE SET lote_id = excluded.lote_id, "
             "toneladas_recolectadas = excluded.toneladas_recolectadas, "
             "fecha_cosecha = excluded.fecha_cosecha",
-            (
-                cos_id,
-                lote_id,
-                cosecha.toneladas,
-                str(cosecha.fecha),
-            ),
+            (cosecha.id, cosecha.lote.id, cosecha.toneladas, cosecha.fecha.isoformat()),
         )
+
 
 def listar_cosechas(conn, lotes_por_id):
     return [Cosecha(f["id"], lotes_por_id[f["lote_id"]], f["toneladas_recolectadas"],
                     date.fromisoformat(f["fecha_cosecha"]))
             for f in conn.execute("SELECT * FROM historial_cosechas ORDER BY id")]
 
+
 # ------------------------------------------------------------ REGISTROS
 def guardar_registro(conn, registro):
-    reg_id = getattr(registro, "id", getattr(registro, "_id", None))
-    lote = getattr(registro, "lote", getattr(registro, "_lote", None))
-    lote_id = getattr(lote, "id", getattr(lote, "_id", None)) if lote else 1
-    if lote_id is None and lote and hasattr(lote, "nombre"):
-        fila = conn.execute("SELECT id FROM lotes WHERE nombre = ?", (lote.nombre,)).fetchone()
-        if fila:
-            lote_id = fila["id"]
-
-    maquina = getattr(registro, "maquinaria", getattr(registro, "_maquinaria", None))
-    maquina_id = getattr(maquina, "id", getattr(maquina, "_id", None)) if maquina else None
-    if maquina_id is None and maquina and hasattr(maquina, "nombre"):
-        fila_m = conn.execute("SELECT id FROM maquinaria WHERE nombre = ?", (maquina.nombre,)).fetchone()
-        if fila_m:
-            maquina_id = fila_m["id"]
-
-    completado_val = 1 if getattr(registro, "_completado", getattr(registro, "completado", False)) else 0
-
+    """Guarda el registro y sincroniza las horas de la maquinaria usada."""
+    maquina = registro.maquinaria
     with conn:
-        if maquina is not None and maquina_id:
+        if maquina is not None:
             conn.execute("UPDATE maquinaria SET horas_uso = ?, "
                          "horas_ultimo_mantenimiento = ? WHERE id = ?",
-                         (maquina.horas_uso, getattr(maquina, "horas_ultimo_mantenimiento", getattr(maquina, "_horas_ultimo_mantenimiento", 0.0)), maquina_id))
+                         (maquina.horas_uso, maquina.horas_ultimo_mantenimiento, maquina.id))
         conn.execute(
             "INSERT INTO registros_campo (id, lote_id, maquinaria_id, actividad, "
             "descripcion, fecha, horas_trabajadas, completado) "
@@ -277,10 +265,11 @@ def guardar_registro(conn, registro):
             "maquinaria_id = excluded.maquinaria_id, actividad = excluded.actividad, "
             "descripcion = excluded.descripcion, fecha = excluded.fecha, "
             "horas_trabajadas = excluded.horas_trabajadas, completado = excluded.completado",
-            (reg_id, lote_id, maquina_id,
-             registro.actividad, registro.descripcion, str(registro.fecha),
-             registro.horas_trabajadas, completado_val),
+            (registro.id, registro.lote.id, maquina.id if maquina else None,
+             registro.actividad, registro.descripcion, registro.fecha.isoformat(),
+             registro.horas_trabajadas, int(registro.completado)),
         )
+
 
 def listar_registros(conn, lotes_por_id, maquinas_por_id):
     return [RegistroCampo(f["id"], lotes_por_id[f["lote_id"]], f["actividad"],
@@ -289,16 +278,9 @@ def listar_registros(conn, lotes_por_id, maquinas_por_id):
                           bool(f["completado"]))
             for f in conn.execute("SELECT * FROM registros_campo ORDER BY id")]
 
+
 # --------------------------------------------------------- DIAGNOSTICOS
 def guardar_diagnostico(conn, diagnostico):
-    diag_id = getattr(diagnostico, "id", getattr(diagnostico, "_id", None))
-    lote = getattr(diagnostico, "lote", getattr(diagnostico, "_lote", None))
-    lote_id = getattr(lote, "id", getattr(lote, "_id", None)) if lote else 1
-    if lote_id is None and lote and hasattr(lote, "nombre"):
-        fila = conn.execute("SELECT id FROM lotes WHERE nombre = ?", (lote.nombre,)).fetchone()
-        if fila:
-            lote_id = fila["id"]
-
     with conn:
         conn.execute(
             "INSERT INTO diagnosticos (id, lote_id, tipo, conclusion, recomendacion, "
@@ -306,98 +288,72 @@ def guardar_diagnostico(conn, diagnostico):
             "ON CONFLICT(id) DO UPDATE SET lote_id = excluded.lote_id, tipo = excluded.tipo, "
             "conclusion = excluded.conclusion, recomendacion = excluded.recomendacion, "
             "severidad = excluded.severidad, fecha = excluded.fecha",
-            (diag_id, lote_id, diagnostico.tipo, diagnostico.conclusion,
-             diagnostico.recomendacion, diagnostico.severidad, str(diagnostico.fecha)),
+            (diagnostico.id, diagnostico.lote.id, diagnostico.tipo, diagnostico.conclusion,
+             diagnostico.recomendacion, diagnostico.severidad, diagnostico.fecha.isoformat()),
         )
+
 
 def listar_diagnosticos(conn, lotes_por_id):
     return [Diagnostico(f["id"], lotes_por_id[f["lote_id"]], f["tipo"], f["conclusion"],
                         f["recomendacion"], f["severidad"], date.fromisoformat(f["fecha"]))
             for f in conn.execute("SELECT * FROM diagnosticos ORDER BY id")]
 
-# ---------------------------------------------------------------- GENERAL
-def eliminar_por_id(conn, tabla, id):
-    if tabla not in TABLAS_CON_ID:
-        raise ValueError("Tabla no permitida.")
-    with conn:
-        conn.execute(f"DELETE FROM {tabla} WHERE id = ?", (id,))
 
 # ----------------------------------------------------------------- FINCA
 def guardar_finca(conn, finca):
-    lotes = getattr(finca, "lotes", getattr(finca, "_lotes", []))
-    for lote in lotes:
+    """Guarda todos los objetos de la finca (en orden, por las llaves foráneas)."""
+    for lote in finca.lotes:
         guardar_lote(conn, lote)
-
-    insumos = getattr(finca, "insumos", getattr(finca, "_insumos", getattr(finca, "inventario_insumos", [])))
-    for insumo in insumos:
+    for insumo in finca.insumos:
         guardar_insumo(conn, insumo)
-
-    maquinarias = getattr(finca, "maquinarias", getattr(finca, "_maquinarias", []))
-    for maquina in maquinarias:
+    for maquina in finca.maquinarias:
         guardar_maquinaria(conn, maquina)
-
-    for lote in lotes:
-        lote_id = getattr(lote, "id", getattr(lote, "_id", None))
-        cultivo = finca.cultivo_de(lote) if hasattr(finca, "cultivo_de") else None
+    for lote in finca.lotes:
+        cultivo = finca.cultivo_de(lote)
         if cultivo is not None:
-            guardar_cultivo(conn, lote_id, cultivo)
-
-    aplicaciones = getattr(finca, "aplicaciones", getattr(finca, "_aplicaciones", []))
-    for aplicacion in aplicaciones:
-        guardar_aplicacion_campo(conn, aplicacion)
-
-    cosechas = getattr(finca, "cosechas", getattr(finca, "_cosechas", []))
-    for cosecha in cosechas:
+            guardar_cultivo(conn, lote.id, cultivo)
+    for aplicacion in finca.aplicaciones:
+        guardar_aplicacion(conn, aplicacion)
+    for cosecha in finca.cosechas:
         guardar_cosecha(conn, cosecha)
-
-    registros = getattr(finca, "registros", getattr(finca, "_registros", []))
-    for registro in registros:
+    for registro in finca.registros:
         guardar_registro(conn, registro)
-
-    diagnosticos = getattr(finca, "diagnosticos", getattr(finca, "_diagnosticos", []))
-    for diagnostico in diagnosticos:
+    for diagnostico in finca.diagnosticos:
         guardar_diagnostico(conn, diagnostico)
 
+
 def cargar_finca(conn, nombre, ubicacion=""):
+    """Reconstruye una Finca completa. Cada objeto se crea una sola vez y se
+    reutiliza donde se necesite (por eso los diccionarios por id)."""
     finca = Finca(nombre, ubicacion)
 
     lotes = listar_lotes(conn)
     for lote in lotes:
         finca.agregar_lote(lote)
-    lotes_por_id = {getattr(lote, "id", lote._id): lote for lote in lotes}
+    lotes_por_id = {lote.id: lote for lote in lotes}
 
     insumos_por_id = {}
     for fila in conn.execute("SELECT * FROM inventario_insumos ORDER BY id"):
         insumo = fila_a_insumo(fila)
-        if hasattr(finca, "agregar_insumo"):
-            finca.agregar_insumo(insumo)
+        finca.agregar_insumo(insumo)
         insumos_por_id[fila["id"]] = insumo
 
     maquinas_por_id = {}
     for maquina in listar_maquinarias(conn):
-        if hasattr(finca, "agregar_maquinaria"):
-            finca.agregar_maquinaria(maquina)
-        maquinas_por_id[getattr(maquina, "id", maquina._id)] = maquina
+        finca.agregar_maquinaria(maquina)
+        maquinas_por_id[maquina.id] = maquina
 
     for lote in lotes:
-        lote_id = getattr(lote, "id", lote._id)
-        cultivo = cargar_cultivo(conn, lote_id)
-        if cultivo is not None and hasattr(finca, "sembrar"):
+        cultivo = cargar_cultivo(conn, lote.id)
+        if cultivo is not None:
             finca.sembrar(lote, cultivo)
 
     for aplicacion in listar_aplicaciones(conn, lotes_por_id, insumos_por_id):
-        if hasattr(finca, "agregar_aplicacion"):
-            finca.agregar_aplicacion(aplicacion)
+        finca.agregar_aplicacion(aplicacion)
     for cosecha in listar_cosechas(conn, lotes_por_id):
-        if hasattr(finca, "agregar_cosecha"):
-            finca.agregar_cosecha(cosecha)
+        finca.agregar_cosecha(cosecha)
     for registro in listar_registros(conn, lotes_por_id, maquinas_por_id):
-        if hasattr(finca, "agregar_registro"):
-            finca.agregar_registro(registro)
+        finca.agregar_registro(registro)
     for diagnostico in listar_diagnosticos(conn, lotes_por_id):
-        if hasattr(finca, "agregar_diagnostico"):
-            finca.agregar_diagnostico(diagnostico)
+        finca.agregar_diagnostico(diagnostico)
     return finca
-
-# Alias de compatibilidad con el archivo de prueba
-guardar_aplicacion = guardar_aplicacion_campo
