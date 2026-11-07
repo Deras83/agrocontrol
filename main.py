@@ -112,17 +112,31 @@ def registrar_insumo(conn):
     print(f"Registrado: {insumo}")
 
 def registrar_aplicacion(conn):
-    finca = cargar(conn)
+    finca = q.cargar(conn)
     lote = elegir("lotes", finca.lotes)
     insumo = elegir("insumos", finca.insumos) if lote is not None else None
     if lote is not None and insumo is not None:
         print(f"Dosis recomendada: {insumo.dosis_recomendada(lote.hectareas):.2f} {insumo.unidad_medida}")
-        aplicacion = AplicacionCampo(q.siguiente_id(conn, "aplicaciones_campo"),
-                                     lote, insumo, leer_numero("Dosis a aplicar: "))
-        aplicacion.aplicar()                     # descuenta el inventario
+        aplicacion = AplicacionCampo(
+            q.siguiente_id(conn, "aplicaciones_campo"),
+            lote, insumo, leer_numero("Dosis a aplicar: ")
+        )
+        aplicacion.aplicar()  # Descuenta el inventario
         q.guardar_aplicacion(conn, aplicacion)
         print(aplicacion)
 
+def ver_bodega(conn):
+    finca = q.cargar_finca(conn, "Mi finca")
+    print("\n========================================")
+    print("       INVENTARIO DE BODEGA / INSUMOS    ")
+    print("========================================")
+    if not finca.insumos:
+        print("  No hay insumos registrados en la bodega.")
+    else:
+        for i in finca.insumos:
+            stock = getattr(i, 'stock', 'N/D')
+            print(f"  - {i.nombre} | Stock: {i.cantidad_disponible} {i.unidad_medida}")
+    print("========================================")
 # --- diagnóstico (sistema experto en Prolog) ---
 def guardar_y_mostrar(conn, diagnostico):
     q.guardar_diagnostico(conn, diagnostico)
@@ -168,12 +182,13 @@ MENU = """
 3. Actualizar humedad        8. Diagnóstico: riego
 4. Sembrar cultivo           9. Diagnóstico: plagas
 5. Registrar insumo         10. Reporte completo
+                            11. Ver bodega / insumos
 0. Salir"""
 
 ACCIONES = {"1": registrar_lote, "2": listar_lotes, "3": actualizar_humedad,
             "4": sembrar_cultivo, "5": registrar_insumo, "6": registrar_aplicacion,
             "7": diagnostico_siembra, "8": diagnostico_riego, "9": diagnostico_plagas,
-            "10": reporte}
+            "10": reporte, "11": ver_bodega}
 
 def menu_principal(conn):
     opcion = ""

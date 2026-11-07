@@ -159,7 +159,7 @@ gravedad(enfermedad,  alta).
 % síntomas coincidentes = diagnóstico más específico).
 causa_probable(Sintomas, Causa, Tipo, Accion, Especificidad, Severidad) :-
     causa(Causa, Tipo, Requeridos),
-    subset(Requeridos, Sintomas),
+    subset(Sintomas, Requeridos),
     length(Requeridos, Especificidad),
     tratamiento(Causa, Accion),
     gravedad(Tipo, Severidad).
