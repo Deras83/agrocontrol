@@ -15,9 +15,12 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "echarts": "^6.1.0",
     "element-plus": "^2.14.8",
     "pinia": "^4.0.3",
     "vue": "^3.5.42",
+    "vue-echarts": "^8.3.2",
     "vue-router": "^5.3.1"
   },
   "devDependencies": {

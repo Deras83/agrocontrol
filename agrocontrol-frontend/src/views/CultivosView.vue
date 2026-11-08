@@ -94,13 +94,14 @@ const dialogVisible = ref(false)
 const cultivosList = ref<Cultivo[]>([])
 const lotesList = ref<Lote[]>([]) // Soluciona el error de tipo 'never'
 
-const form = ref<Cultivo>({
+const formVacio = (): Cultivo => ({
   lote_id: '',
   tipo_cultivo: '',
   variedad: '',
   fecha_siembra: '',
-  etapa: 'Vegetativa'
+  etapa: 'germinacion'
 })
+const form = ref<Cultivo>(formVacio())
 
 // Cargar lotes para el selector
 const cargarLotes = async () => {
@@ -140,15 +141,16 @@ const guardarCultivo = async () => {
       body: JSON.stringify(form.value)
     })
 
-    if (!response.ok) throw new Error('Error al registrar')
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Error al registrar')
 
     ElMessage.success('¡Cultivo registrado con éxito!')
     dialogVisible.value = false
-    form.value = { lote_id: '', tipo_cultivo: '', variedad: '', fecha_siembra: '', etapa: 'En Crecimiento' }
+    form.value = formVacio()
     cargarCultivos()
   } catch (error) {
     console.error(error)
-    ElMessage.error('No se pudo registrar el cultivo.')
+    ElMessage.error(error instanceof Error ? error.message : 'No se pudo registrar el cultivo.')
   }
 }
 

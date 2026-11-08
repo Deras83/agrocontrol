@@ -9,8 +9,10 @@ from flask_cors import CORS
 from database import queries as q
 from database.db_connection import obtener_conexion
 from models.aplicacion_campo import AplicacionCampo
+from models.cosecha import Cosecha
 from models.cultivo import Cultivo
 from models.lote import Lote
+from models.registro_campo import RegistroCampo
 from rules import prolog_bridge as prolog
 from services import analytics, report_generator as rg
 
@@ -61,6 +63,18 @@ def lote_a_dict(l):
 
 def diag(d):
     return jsonify({k: getattr(d, k) for k in ("tipo", "conclusion", "recomendacion", "severidad")})
+
+
+def fecha_de(d):
+    try:
+        return date.fromisoformat(str(d.get("fecha") or date.today())[:10])
+    except ValueError:
+        raise ValueError("fecha debe tener formato AAAA-MM-DD.")
+
+
+def filas(sql):
+    with db() as conn:
+        return jsonify([dict(f) for f in conn.execute(sql)])
 
 
 def lote_de(d):
@@ -154,7 +168,11 @@ def create_aplicacion():
 @app.route("/api/diagnostico/siembra", methods=["POST"])
 def diagnostico_siembra():
     d = datos("lote_id", "cultivo")
-    return diag(prolog.diagnosticar_siembra(0, lote_de(d), d["cultivo"]))
+    lote = lote_de(d)
+    with db() as conn:
+        res = prolog.diagnosticar_siembra(q.siguiente_id(conn, "diagnosticos"), lote, d["cultivo"])
+        q.guardar_diagnostico(conn, res)
+    return diag(res)
 
 
 @app.route("/api/diagnostico/riego", methods=["POST"])
@@ -163,9 +181,12 @@ def diagnostico_riego():
     lote = lote_de(d)
     with db() as conn:
         cultivo = q.cargar_cultivo(conn, lote.id)
-    if cultivo is None:
-        raise ValueError("El lote no tiene cultivo sembrado.")
-    return diag(prolog.diagnosticar_riego(0, lote, cultivo, convertir(d, "temperatura")))
+        if cultivo is None:
+            raise ValueError("El lote no tiene cultivo sembrado.")
+        res = prolog.diagnosticar_riego(q.siguiente_id(conn, "diagnosticos"), lote, cultivo,
+                                        convertir(d, "temperatura"))
+        q.guardar_diagnostico(conn, res)
+    return diag(res)
 
 
 @app.route("/api/diagnostico/plagas", methods=["POST"])
@@ -173,7 +194,11 @@ def diagnostico_plagas():
     d = datos("lote_id", "sintomas")
     if not isinstance(d["sintomas"], list):
         raise TypeError("'sintomas' debe ser una lista.")
-    return diag(prolog.diagnosticar_plagas(0, lote_de(d), d["sintomas"]))
+    lote = lote_de(d)
+    with db() as conn:
+        res = prolog.diagnosticar_plagas(q.siguiente_id(conn, "diagnosticos"), lote, d["sintomas"])
+        q.guardar_diagnostico(conn, res)
+    return diag(res)
 
 
 @app.route("/api/sintomas", methods=["GET"])
@@ -193,6 +218,58 @@ def get_reporte_general():
     with db() as conn:
         finca = q.cargar_finca(conn, "Mi finca")
     return jsonify({"reporte": rg.reporte_completo(finca)})
+
+
+@app.route("/api/aplicaciones", methods=["GET"])
+def get_aplicaciones():
+    return filas("SELECT a.id, l.nombre AS lote, i.nombre_producto AS insumo, a.dosis, a.fecha, "
+                 "a.aplicada FROM aplicaciones_campo a JOIN lotes l ON a.lote_id = l.id "
+                 "JOIN inventario_insumos i ON a.insumo_id = i.id ORDER BY a.id DESC")
+
+
+@app.route("/api/diagnosticos", methods=["GET"])
+def get_diagnosticos():
+    return filas("SELECT d.id, l.nombre AS lote, d.tipo, d.conclusion, d.recomendacion, "
+                 "d.severidad, d.fecha FROM diagnosticos d JOIN lotes l ON d.lote_id = l.id "
+                 "ORDER BY d.id DESC")
+
+
+@app.route("/api/bitacora", methods=["GET"])
+def get_bitacora():
+    return filas("SELECT r.id, l.nombre AS lote, r.actividad, r.descripcion, r.fecha, "
+                 "r.horas_trabajadas, r.completado FROM registros_campo r "
+                 "JOIN lotes l ON r.lote_id = l.id ORDER BY r.id DESC")
+
+
+@app.route("/api/bitacora", methods=["POST"])
+def create_bitacora():
+    d = datos("lote_id", "actividad")
+    lote = lote_de(d)
+    with db() as conn:
+        nueva_id = q.siguiente_id(conn, "registros_campo")
+        registro = RegistroCampo(nueva_id, lote, str(d["actividad"]).strip().lower(),
+                                 str(d.get("descripcion") or "").strip(), fecha_de(d),
+                                 convertir(d, "horas_trabajadas") if d.get("horas_trabajadas") else 0.0,
+                                 None, bool(d.get("completado", False)))
+        q.guardar_registro(conn, registro)
+    return jsonify({"message": "Actividad registrada", "id": nueva_id}), 201
+
+
+@app.route("/api/cosechas", methods=["GET"])
+def get_cosechas():
+    return filas("SELECT c.id, l.nombre AS lote, c.toneladas_recolectadas AS toneladas, "
+                 "c.fecha_cosecha AS fecha FROM historial_cosechas c "
+                 "JOIN lotes l ON c.lote_id = l.id ORDER BY c.id DESC")
+
+
+@app.route("/api/cosechas", methods=["POST"])
+def create_cosecha():
+    d = datos("lote_id", "toneladas")
+    lote = lote_de(d)
+    with db() as conn:
+        nueva_id = q.siguiente_id(conn, "historial_cosechas")
+        q.guardar_cosecha(conn, Cosecha(nueva_id, lote, convertir(d, "toneladas"), fecha_de(d)))
+    return jsonify({"message": "Cosecha registrada", "id": nueva_id}), 201
 
 
 if __name__ == "__main__":

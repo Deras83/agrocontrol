@@ -1,0 +1,143 @@
+/* Tema AgroControl: vidrio oscuro sobre degradado verde-amarillo (sobre el modo oscuro de Element Plus) */
+:root,
+html.dark {
+  --verde: #22c55e;
+  --amarillo: #facc15;
+  --naranja: #f97316;
+  --vidrio: rgba(10, 16, 12, 0.4);
+  --borde-vidrio: 1px solid rgba(255, 255, 255, 0.22);
+
+  --el-color-primary: #22c55e;
+  --el-color-primary-light-3: #4ade80;
+  --el-color-primary-light-5: #166534;
+  --el-color-primary-light-7: #14532d;
+  --el-color-primary-light-8: #123d24;
+  --el-color-primary-light-9: #0f2f1c;
+  --el-color-primary-dark-2: #16a34a;
+  --el-color-success: #22c55e;
+  --el-color-warning: #facc15;
+  --el-color-danger: #f97316;
+
+  --el-text-color-primary: #ffffff;
+  --el-text-color-regular: #e5e7eb;
+  --el-text-color-secondary: #b8c2bc;
+  --el-bg-color: rgba(16, 26, 20, 0.92);
+  --el-bg-color-overlay: #16231b;
+  --el-fill-color-blank: rgba(10, 16, 12, 0.5);
+  --el-fill-color-light: rgba(255, 255, 255, 0.08);
+  --el-fill-color-lighter: rgba(255, 255, 255, 0.05);
+  --el-border-color: rgba(255, 255, 255, 0.2);
+  --el-border-color-light: rgba(255, 255, 255, 0.15);
+  --el-border-color-lighter: rgba(255, 255, 255, 0.1);
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: #fff;
+  background: linear-gradient(rgba(0, 0, 0, 0.15), rgba(0, 0, 0, 0.15)),
+    url('./fondo.jpg') center / cover fixed no-repeat;
+}
+
+h2 { font-weight: 700; margin: 0 0 18px; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5); }
+h3 { margin: 0 0 8px; font-weight: 600; }
+
+/* Estructura */
+.layout-container { height: 100vh; }
+.aside {
+  background: #0b0f0c;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+.logo-container {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.logo-container h2 { margin: 0; font-size: 1.2rem; }
+.header {
+  background: transparent;
+  display: flex;
+  align-items: center;
+}
+.header-content { width: 100%; display: flex; justify-content: space-between; align-items: center; }
+.header-content h3 { margin: 0; }
+.user-info {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 0.9rem;
+}
+.main-content { padding: 24px; }
+
+/* Menú */
+.el-menu {
+  --el-menu-bg-color: transparent;
+  --el-menu-text-color: #e5e7eb;
+  --el-menu-hover-bg-color: rgba(255, 255, 255, 0.08);
+  --el-menu-active-color: #fff;
+  border-right: none;
+  padding: 0 10px;
+}
+.el-menu-item { border-radius: 12px; margin-bottom: 2px; }
+.el-menu-item.is-active { background: #22c55e; color: #fff; font-weight: 600; }
+.el-menu-item-group__title {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Vidrio: tarjetas, tablas, diálogos y alertas */
+.el-card,
+.el-dialog,
+.el-table,
+.el-alert {
+  border-radius: 16px;
+  border: var(--borde-vidrio);
+  backdrop-filter: blur(18px);
+}
+.el-card { --el-card-bg-color: var(--vidrio); }
+.el-dialog { background: var(--el-bg-color); }
+.el-table {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: rgba(255, 255, 255, 0.1);
+  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.1);
+  --el-table-border-color: rgba(255, 255, 255, 0.15);
+  background: var(--vidrio);
+  overflow: hidden;
+}
+.el-card .el-table { background: transparent; border: none; backdrop-filter: none; }
+
+/* Controles */
+.el-button { border-radius: 10px; font-weight: 600; }
+.el-input__wrapper, .el-select__wrapper, .el-textarea__inner { border-radius: 10px; }
+
+/* Tarjetas más transparentes (forzado para ganarle al estilo base de Element Plus) */
+.el-card {
+  --el-card-bg-color: rgba(10, 16, 12, 0.3) !important;
+  background-color: rgba(10, 16, 12, 0.3) !important;
+}
+
+/* Menú plegable (hamburguesa) */
+.aside { transition: width 0.25s; overflow-x: hidden; }
+.ico { font-size: 1.2rem; margin-right: 10px; }
+.header-izq { display: flex; align-items: center; gap: 14px; }
+.hamburguesa {
+  width: 40px;
+  height: 40px;
+  font-size: 1.4rem;
+  color: #fff;
+  cursor: pointer;
+  border-radius: 10px;
+  border: var(--borde-vidrio);
+  background: rgba(255, 255, 255, 0.12);
+}
+.hamburguesa:hover { background: rgba(255, 255, 255, 0.22); }
+.el-menu.plegado .txt,
+.el-menu.plegado .el-menu-item-group__title,
+.aside:has(.plegado) .logo-container .txt { display: none; }
+.el-menu.plegado .el-menu-item { justify-content: center; padding: 0; }
+.el-menu.plegado .ico { margin-right: 0; }

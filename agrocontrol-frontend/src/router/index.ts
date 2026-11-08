@@ -3,6 +3,11 @@ import DashboardView from '../views/DashboardView.vue'
 import FincasView from '../views/FincasView.vue'
 import PrologView from '../views/PrologView.vue'
 import CultivosView from '../views/CultivosView.vue'
+import AplicacionesView from '../views/AplicacionesView.vue'
+import DiagnosticosView from '../views/DiagnosticosView.vue'
+import BitacoraView from '../views/BitacoraView.vue'
+import CosechasView from '../views/CosechasView.vue'
+import ReporteView from '../views/ReporteView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -26,6 +31,31 @@ const router = createRouter({
       path: '/cultivos',
       name: 'cultivos',
       component: CultivosView
+    },
+    {
+      path: '/aplicaciones',
+      name: 'aplicaciones',
+      component: AplicacionesView
+    },
+    {
+      path: '/diagnosticos',
+      name: 'diagnosticos',
+      component: DiagnosticosView
+    },
+    {
+      path: '/bitacora',
+      name: 'bitacora',
+      component: BitacoraView
+    },
+    {
+      path: '/cosechas',
+      name: 'cosechas',
+      component: CosechasView
+    },
+    {
+      path: '/reporte',
+      name: 'reporte',
+      component: ReporteView
     }
   ]
 })

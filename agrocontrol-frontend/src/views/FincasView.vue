@@ -86,7 +86,7 @@ const eliminarLote = async (id: number) => {
   <div class="fincas-container">
     <div class="header-section">
       <div>
-        <h2>🏡 Gestión de Lotes y Terrenos</h2>
+        <h2> Gestión de Lotes y Terrenos</h2>
         <p>Administra las parcelas sincronizadas con tu base de datos SQLite.</p>
       </div>
       <el-button type="primary" @click="dialogVisible = true">
