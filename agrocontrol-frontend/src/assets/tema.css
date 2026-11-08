@@ -141,3 +141,26 @@ h3 { margin: 0 0 8px; font-weight: 600; }
 .aside:has(.plegado) .logo-container .txt { display: none; }
 .el-menu.plegado .el-menu-item { justify-content: center; padding: 0; }
 .el-menu.plegado .ico { margin-right: 0; }
+
+/* Teléfono: el menú se desliza sobre el contenido y todo se apila */
+.aside-movil {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2000;
+  transform: translateX(-100%);
+  transition: transform 0.25s;
+}
+.aside-movil.abierto { transform: translateX(0); }
+.overlay { position: fixed; inset: 0; z-index: 1999; background: rgba(0, 0, 0, 0.55); }
+
+@media (max-width: 768px) {
+  .main-content { padding: 12px; }
+  .header { padding: 0 12px; }
+  .user-info { display: none; }
+  .header-content h3 { font-size: 1rem; }
+  .el-dialog { width: 92% !important; }
+  .el-row .el-col { flex: 0 0 100% !important; max-width: 100% !important; margin-bottom: 12px; }
+  .el-row .el-col-6 { flex: 0 0 50% !important; max-width: 50% !important; }
+}
