@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { DataBoard, Document, MapLocation, Orange, MagicStick, Notebook, Van, Cpu, FirstAidKit, Sunny } from '@element-plus/icons-vue'
+import { DataBoard, Document, MapLocation, Orange, MagicStick, Notebook, Van, Cpu, FirstAidKit, Sunny, Box } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const colapsado = ref(false) // escritorio: menú de solo iconos
@@ -37,6 +37,7 @@ const alternarMenu = () => {
           <el-menu-item index="/cultivos" title="Cultivos"><el-icon class="ico"><Orange /></el-icon><span class="txt">Cultivos</span></el-menu-item>
         </el-menu-item-group>
         <el-menu-item-group title="Operaciones">
+          <el-menu-item index="/insumos" title="Insumos"><el-icon class="ico"><Box /></el-icon><span class="txt">Insumos</span></el-menu-item>
           <el-menu-item index="/aplicaciones" title="Aplicaciones"><el-icon class="ico"><MagicStick /></el-icon><span class="txt">Aplicaciones</span></el-menu-item>
           <el-menu-item index="/bitacora" title="Bitácora"><el-icon class="ico"><Notebook /></el-icon><span class="txt">Bitácora</span></el-menu-item>
           <el-menu-item index="/cosechas" title="Cosechas"><el-icon class="ico"><Van /></el-icon><span class="txt">Cosechas</span></el-menu-item>

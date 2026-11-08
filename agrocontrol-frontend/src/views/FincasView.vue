@@ -94,6 +94,39 @@ const eliminarLote = async (lote: any) => {
   }
 }
 
+// Función para actualizar la humedad del suelo de un lote
+const cambiarHumedad = async (lote: any) => {
+  let valor = 0
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `Humedad actual de "${lote.nombre}" (0 a 100 %)`,
+      'Actualizar humedad',
+      {
+        inputValue: String(lote.humedad_actual),
+        inputPattern: /^(100(\.0+)?|\d{1,2}(\.\d+)?)$/,
+        inputErrorMessage: 'Escribe un número entre 0 y 100'
+      }
+    )
+    valor = Number(value)
+  } catch {
+    return // el usuario canceló
+  }
+  try {
+    const response = await fetch(`http://127.0.0.1:5000/api/lotes/${lote.id}/humedad`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ humedad: valor })
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Error al actualizar la humedad')
+    ElMessage.success('Humedad actualizada')
+    cargarLotes()
+  } catch (error) {
+    console.error(error)
+    ElMessage.error(error instanceof Error ? error.message : 'No se pudo actualizar la humedad.')
+  }
+}
+
 // --- Detalle de un lote: ficha, cultivo e historial (usa los endpoints existentes) ---
 const detalleVisible = ref(false)
 const detalle = ref<any>(null)
@@ -156,8 +189,14 @@ const pestanas = [
         <el-table-column prop="area_ha" label="Área (Hectáreas)" width="150" />
         <el-table-column prop="tipo_suelo" label="Tipo de Suelo" width="180" />
         <el-table-column prop="ph" label="pH del Suelo" width="120" />
+        <el-table-column label="Humedad" width="140">
+          <template #default="{ row }">
+            <el-tag :type="estadoHumedad(row.humedad_actual)[0]">{{ row.humedad_actual }}%</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column label="Acciones" align="right">
           <template #default="{ row }">
+            <el-button size="small" type="success" plain @click="cambiarHumedad(row)">Humedad</el-button>
             <el-button size="small" type="primary" plain @click="verDetalle(row)">Ver Detalles</el-button>
             <el-button size="small" type="danger" plain @click="eliminarLote(row)">Eliminar</el-button>
           </template>

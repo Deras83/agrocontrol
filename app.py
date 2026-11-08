@@ -11,8 +11,11 @@ from database.db_connection import obtener_conexion
 from models.aplicacion_campo import AplicacionCampo
 from models.cosecha import Cosecha
 from models.cultivo import Cultivo
+from models.fertilizante import Fertilizante
 from models.lote import Lote
+from models.plaguicida import Plaguicida
 from models.registro_campo import RegistroCampo
+from models.semilla import Semilla
 from rules import prolog_bridge as prolog
 from services import analytics, report_generator as rg
 
@@ -113,6 +116,18 @@ def delete_lote(id):
     return jsonify({"message": "Lote eliminado (y su cultivo, si tenía)."})
 
 
+@app.route("/api/lotes/<int:id>/humedad", methods=["PUT"])
+def update_humedad(id):
+    d = datos("humedad")
+    with db() as conn:
+        lote = q.obtener_lote(conn, id)
+        if lote is None:
+            return jsonify({"error": "El lote no existe."}), 404
+        lote.humedad_actual = convertir(d, "humedad")
+        q.guardar_lote(conn, lote)
+    return jsonify({"message": "Humedad actualizada", "humedad": lote.humedad_actual})
+
+
 @app.route("/api/cultivos", methods=["GET"])
 def get_cultivos():
     with db() as conn:
@@ -138,11 +153,86 @@ def create_cultivo():
     return jsonify({"message": "Cultivo registrado"}), 201
 
 
+@app.route("/api/cultivos/<int:id>/etapa", methods=["PUT"])
+def update_etapa(id):
+    d = datos("etapa")
+    with db() as conn:
+        fila = conn.execute("SELECT lote_id FROM cultivos WHERE id = ?", (id,)).fetchone()
+        if fila is None:
+            return jsonify({"error": "El cultivo no existe."}), 404
+        cultivo = q.cargar_cultivo(conn, fila["lote_id"])
+        cultivo.etapa_fenologica = str(d["etapa"]).strip().lower()
+        q.guardar_cultivo(conn, fila["lote_id"], cultivo)
+    return jsonify({"message": "Etapa actualizada", "etapa": cultivo.etapa_fenologica})
+
+
+EXTRAS_INSUMO = {"fertilizante": ("n", "p", "k"), "plaguicida": ("periodo_carencia_dias",),
+                 "semilla": ("tasa_germinacion",)}
+
+
 @app.route("/api/insumos", methods=["GET"])
 def get_insumos():
+    return filas("SELECT id, nombre_producto AS nombre, tipo, stock, unidad, costo_unitario, "
+                 "dosis_por_ha, n, p, k, periodo_carencia_dias, tasa_germinacion "
+                 "FROM inventario_insumos ORDER BY id")
+
+
+@app.route("/api/insumos", methods=["POST"])
+def create_insumo():
+    d = datos("nombre", "tipo", "stock")
+    tipo = str(d["tipo"]).strip().lower()
+    if tipo not in EXTRAS_INSUMO:
+        raise ValueError("tipo debe ser fertilizante, plaguicida o semilla.")
+    datos(*EXTRAS_INSUMO[tipo])                   # exige los campos propios del tipo
+    nombre, stock = str(d["nombre"]).strip(), convertir(d, "stock")
+    extras = {"costo_unitario": float(d.get("costo_unitario") or 0),
+              "dosis_por_ha": float(d.get("dosis_por_ha") or 0)}
+    if d.get("unidad"):
+        extras["unidad_medida"] = str(d["unidad"]).strip()
+    if tipo == "fertilizante":
+        insumo = Fertilizante(nombre, stock, convertir(d, "n"), convertir(d, "p"),
+                              convertir(d, "k"), **extras)
+    elif tipo == "plaguicida":
+        insumo = Plaguicida(nombre, stock, convertir(d, "periodo_carencia_dias", int), **extras)
+    else:
+        insumo = Semilla(nombre, stock, convertir(d, "tasa_germinacion"), **extras)
     with db() as conn:
-        return jsonify([{"id": f["id"], "nombre": f["nombre_producto"], "unidad": f["unidad"],
-                         "stock": f["stock"]} for f in conn.execute("SELECT * FROM inventario_insumos")])
+        if any(i.nombre.lower() == insumo.nombre.lower() for i in q.listar_insumos(conn)):
+            raise ValueError(f"Ya existe un insumo llamado '{insumo.nombre}'.")
+        q.guardar_insumo(conn, insumo)
+    return jsonify({"message": "Insumo registrado"}), 201
+
+
+def nombre_insumo(conn, id):
+    fila = conn.execute("SELECT nombre_producto FROM inventario_insumos WHERE id = ?",
+                        (id,)).fetchone()
+    return fila["nombre_producto"] if fila else None
+
+
+@app.route("/api/insumos/<int:id>/reabastecer", methods=["POST"])
+def reabastecer_insumo(id):
+    d = datos("cantidad")
+    with db() as conn:
+        nombre = nombre_insumo(conn, id)
+        if nombre is None:
+            return jsonify({"error": "El insumo no existe."}), 404
+        insumo = q.obtener_insumo(conn, nombre)
+        insumo.reabastecer(convertir(d, "cantidad"))
+        q.guardar_insumo(conn, insumo)
+    return jsonify({"message": "Inventario actualizado", "stock": insumo.cantidad_disponible})
+
+
+@app.route("/api/insumos/<int:id>", methods=["DELETE"])
+def delete_insumo(id):
+    with db() as conn:
+        nombre = nombre_insumo(conn, id)
+        if nombre is None:
+            return jsonify({"error": "El insumo no existe."}), 404
+        try:
+            q.eliminar_insumo(conn, nombre)
+        except sqlite3.IntegrityError:
+            raise ValueError("No se puede eliminar: el insumo tiene aplicaciones registradas.")
+    return jsonify({"message": "Insumo eliminado."})
 
 
 @app.route("/api/aplicaciones", methods=["POST"])

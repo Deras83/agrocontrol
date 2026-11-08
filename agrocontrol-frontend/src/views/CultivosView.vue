@@ -15,6 +15,11 @@
       <el-table-column prop="variedad" label="Variedad" />
       <el-table-column prop="fecha_siembra" label="Fecha de Siembra" />
       <el-table-column prop="etapa" label="Etapa" />
+      <el-table-column label="Acciones" width="150">
+        <template #default="{ row }">
+          <el-button size="small" type="success" plain @click="abrirEtapa(row)">Cambiar etapa</el-button>
+        </template>
+      </el-table-column>
     </el-table>
 
     <!-- Modal de Registro -->
@@ -65,6 +70,17 @@
           <el-button @click="dialogVisible = false">Cancelar</el-button>
           <el-button type="primary" @click="guardarCultivo">Guardar</el-button>
         </span>
+      </template>
+    </el-dialog>
+
+    <!-- Modal para cambiar la etapa de un cultivo -->
+    <el-dialog v-model="etapaVisible" :title="`Etapa: ${cultivoSel?.tipo_cultivo} (${cultivoSel?.nombre_lote})`" width="420px">
+      <el-select v-model="etapaNueva" style="width: 100%">
+        <el-option v-for="[valor, texto] in etapas" :key="valor" :label="texto" :value="valor" />
+      </el-select>
+      <template #footer>
+        <el-button @click="etapaVisible = false">Cancelar</el-button>
+        <el-button type="primary" @click="guardarEtapa">Guardar</el-button>
       </template>
     </el-dialog>
   </div>
@@ -151,6 +167,38 @@ const guardarCultivo = async () => {
   } catch (error) {
     console.error(error)
     ElMessage.error(error instanceof Error ? error.message : 'No se pudo registrar el cultivo.')
+  }
+}
+
+// Cambiar la etapa de un cultivo ya registrado
+const etapas = [['germinacion', 'Germinación'], ['vegetativa', 'Vegetativa'], ['floracion', 'Floración'],
+  ['fructificacion', 'Fructificación'], ['cosecha', 'Cosecha']]
+const etapaVisible = ref(false)
+const cultivoSel = ref<Cultivo | null>(null)
+const etapaNueva = ref('germinacion')
+
+const abrirEtapa = (cultivo: Cultivo) => {
+  cultivoSel.value = cultivo
+  etapaNueva.value = cultivo.etapa
+  etapaVisible.value = true
+}
+
+const guardarEtapa = async () => {
+  if (!cultivoSel.value) return
+  try {
+    const response = await fetch(`http://127.0.0.1:5000/api/cultivos/${cultivoSel.value.id}/etapa`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ etapa: etapaNueva.value })
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Error al cambiar la etapa')
+    ElMessage.success('Etapa actualizada')
+    etapaVisible.value = false
+    cargarCultivos()
+  } catch (error) {
+    console.error(error)
+    ElMessage.error(error instanceof Error ? error.message : 'No se pudo cambiar la etapa.')
   }
 }
 

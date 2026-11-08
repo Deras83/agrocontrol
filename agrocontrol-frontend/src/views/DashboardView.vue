@@ -14,6 +14,7 @@ const resumen = ref({ lotes_criticos: [] })
 const lotes = ref([])
 const diagnosticos = ref([])
 const cosechas = ref([])
+const insumos = ref([])
 
 const pedir = async (ruta) => {
   const r = await fetch(`${API}/${ruta}`)
@@ -28,6 +29,7 @@ onMounted(async () => {
     lotes.value = await pedir('lotes')
     diagnosticos.value = (await pedir('diagnosticos')).slice(0, 4)
     cosechas.value = await pedir('cosechas')
+    insumos.value = await pedir('insumos')
   } catch (e) {
     ElMessage.error(e.message)
   }
@@ -37,10 +39,12 @@ const VERDE = '#22c55e', AMARILLO = '#facc15', NARANJA = '#f97316'
 const BLANCO = { color: '#e5e7eb' }
 const sevColor = { baja: VERDE, media: AMARILLO, alta: NARANJA }
 
+const agotados = computed(() => insumos.value.filter((i) => i.stock <= 0))
+
 const tarjetas = computed(() => [
   { t: 'Lotes', v: resumen.value.lotes ?? 0, c: VERDE },
   { t: 'Área total (ha)', v: resumen.value.area_total ?? 0, c: VERDE },
-  { t: 'Costo de insumos', v: resumen.value.costo_total ?? 0, c: AMARILLO },
+  { t: 'Insumos agotados', v: agotados.value.length, c: agotados.value.length ? NARANJA : VERDE },
   { t: 'Toneladas cosechadas', v: resumen.value.toneladas_cosechadas ?? 0, c: NARANJA },
 ])
 
@@ -136,6 +140,22 @@ const pastel = computed(() => {
         <el-card shadow="never">
           <template #header>Lotes por estado de humedad</template>
           <v-chart :option="pastel" autoresize style="height: 260px" />
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="16" class="fila">
+      <el-col :span="24">
+        <el-card shadow="never">
+          <template #header>Insumos agotados</template>
+          <el-empty v-if="!agotados.length" description="No hay insumos agotados" :image-size="60" />
+          <div v-for="i in agotados" :key="i.id" class="alerta">
+            <span class="punto" :style="{ background: NARANJA }" />
+            <div>
+              <div>{{ i.nombre }}</div>
+              <small>{{ i.tipo }} · 0 {{ i.unidad }} disponibles</small>
+            </div>
+          </div>
         </el-card>
       </el-col>
     </el-row>
