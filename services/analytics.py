@@ -127,11 +127,11 @@ def resumen_finca(finca, factor_rendimiento):
     """Todos los indicadores en un diccionario nuevo; no toca la finca."""
     return {
         "lotes": len(finca.lotes),
-        "area_total": area_total(finca.lotes),
+        "area_total": round(area_total(finca.lotes), 3),
         "lotes_criticos": nombres_lotes_criticos(finca.lotes),
         "costo_total": round(costo_total(finca.aplicaciones), 2),
         "costo_por_hectarea": costo_por_hectarea_global(finca.lotes, finca.aplicaciones),
-        "toneladas_cosechadas": toneladas_totales(finca.cosechas),
+        "toneladas_cosechadas": round(toneladas_totales(finca.cosechas), 3),
         "rendimiento_ponderado": rendimiento_ponderado(finca.cosechas),
         "proyeccion_global": proyeccion_global(finca.lotes, factor_rendimiento),
     }

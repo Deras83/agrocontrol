@@ -21,7 +21,7 @@ from services import analytics, report_generator as rg
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
-
+RIEGO_PUNTOS_POR_HORA = 5  
 
 @app.errorhandler(ValueError)
 @app.errorhandler(TypeError)
@@ -342,6 +342,11 @@ def create_bitacora():
                                  convertir(d, "horas_trabajadas") if d.get("horas_trabajadas") else 0.0,
                                  None, bool(d.get("completado", False)))
         q.guardar_registro(conn, registro)
+        if registro.actividad == "riego" and registro.horas_trabajadas > 0:
+            lote.humedad_actual = min(100, lote.humedad_actual
+                                      + registro.horas_trabajadas * RIEGO_PUNTOS_POR_HORA)
+            q.guardar_lote(conn, lote)        
+        
     return jsonify({"message": "Actividad registrada", "id": nueva_id}), 201
 
 
