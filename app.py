@@ -1,13 +1,15 @@
 """API Flask de AgroControl: usa queries.py, prolog_bridge y analytics."""
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import date
+from pathlib import Path
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from database import queries as q
-from database.db_connection import obtener_conexion
+from database.db_connection import crear_tablas, obtener_conexion
 from models.aplicacion_campo import AplicacionCampo
 from models.cosecha import Cosecha
 from models.cultivo import Cultivo
@@ -19,9 +21,28 @@ from models.semilla import Semilla
 from rules import prolog_bridge as prolog
 from services import analytics, report_generator as rg
 
-app = Flask(__name__)
+BASE_DIR = Path(__file__).resolve().parent
+FRONTEND_DIST = BASE_DIR / "agrocontrol-frontend" / "dist"
+
+app = Flask(__name__, static_folder=None)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
-RIEGO_PUNTOS_POR_HORA = 5  
+RIEGO_PUNTOS_POR_HORA = 5
+
+
+def inicializar_bd():
+    """Crea las tablas y, si la base está vacía, carga los datos de ejemplo."""
+    conn = obtener_conexion()
+    try:
+        crear_tablas(conn)
+        vacia = conn.execute("SELECT COUNT(*) FROM lotes").fetchone()[0] == 0
+    finally:
+        conn.close()
+    if vacia and os.environ.get("AGROCONTROL_AUTO_SEED", "1") != "0":
+        from seed import main as sembrar
+        sembrar()
+
+
+inicializar_bd()
 
 @app.errorhandler(ValueError)
 @app.errorhandler(TypeError)
@@ -365,6 +386,21 @@ def create_cosecha():
         nueva_id = q.siguiente_id(conn, "historial_cosechas")
         q.guardar_cosecha(conn, Cosecha(nueva_id, lote, convertir(d, "toneladas"), fecha_de(d)))
     return jsonify({"message": "Cosecha registrada", "id": nueva_id}), 201
+
+
+@app.route("/", defaults={"path": ""})
+@app.route("/<path:path>")
+def frontend(path):
+    """Sirve el build de Vue y usa index.html como fallback del router (history mode)."""
+    if path.startswith("api/"):
+        return jsonify({"error": "No encontrado"}), 404
+    destino = FRONTEND_DIST / path
+    if path and destino.is_file():
+        return send_from_directory(FRONTEND_DIST, path)
+    index = FRONTEND_DIST / "index.html"
+    if index.is_file():
+        return send_from_directory(FRONTEND_DIST, "index.html")
+    return jsonify({"error": "Frontend no compilado: ejecuta 'npm run build'."}), 404
 
 
 if __name__ == "__main__":

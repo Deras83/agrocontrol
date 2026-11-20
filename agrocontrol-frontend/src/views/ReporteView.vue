@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 
-const API = 'http://127.0.0.1:5000/api'
+const API = '/api'
 const resumen = ref({ lotes_criticos: [] })
 const lotes = ref([])
 const cultivos = ref([])

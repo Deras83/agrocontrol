@@ -7,7 +7,7 @@ const colores = { baja: 'success', media: 'warning', alta: 'danger' }
 
 onMounted(async () => {
   try {
-    const r = await fetch('http://127.0.0.1:5000/api/diagnosticos')
+    const r = await fetch('/api/diagnosticos')
     const data = await r.json()
     if (!r.ok) throw new Error(data.error || 'Error del servidor')
     lista.value = data

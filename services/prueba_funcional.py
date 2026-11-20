@@ -33,7 +33,7 @@ finca.sembrar(sur, Cultivo("Frijol", "rojo", "vegetativa", 25))
 app1 = AplicacionCampo(1, norte, urea, 100, date(2026, 10, 1))
 app2 = AplicacionCampo(2, sur, cipermetrina, 1.5, date(2026, 10, 2))
 app3 = AplicacionCampo(3, norte, urea, 50, date(2026, 10, 5))
-app4 = AplicacionCampo(4, este, urea, 200, date(2026, 10, 6))      # queda pendiente
+app4 = AplicacionCampo(4, este, urea, 200, date(2026, 10, 6))      
 for aplicacion in (app1, app2, app3):
     aplicacion.aplicar()
 for aplicacion in (app1, app2, app3, app4):

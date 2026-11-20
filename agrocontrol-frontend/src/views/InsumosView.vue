@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
-const API = 'http://127.0.0.1:5000/api'
+const API = '/api'
 const STOCK_BAJO = 10 // por debajo de esta cantidad se muestra el aviso "Bajo"
 const UNIDADES = { fertilizante: 'kg', plaguicida: 'l', semilla: 'kg' }
 const lista = ref([])

@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 
-const API = 'http://127.0.0.1:5000/api'
+const API = '/api'
 const actividades = ['preparacion_suelo', 'siembra', 'riego', 'fertilizacion',
                      'fumigacion', 'mantenimiento', 'cosecha', 'otro']
 const lista = ref([])

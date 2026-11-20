@@ -19,7 +19,7 @@ const lotesList = ref([])
 // Función para obtener los lotes desde Flask
 const cargarLotes = async () => {
   try {
-    const response = await fetch('http://127.0.0.1:5000/api/lotes')
+    const response = await fetch('/api/lotes')
     if (!response.ok) throw new Error('Error al conectar con el servidor')
     const data = await response.json()
     lotesList.value = data
@@ -42,7 +42,7 @@ const guardarLote = async () => {
   }
 
   try {
-    const response = await fetch('http://127.0.0.1:5000/api/lotes', {
+    const response = await fetch('/api/lotes', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -77,7 +77,7 @@ const eliminarLote = async (lote: any) => {
     return // el usuario canceló
   }
   try {
-    const response = await fetch(`http://127.0.0.1:5000/api/lotes/${lote.id}`, { method: 'DELETE' })
+    const response = await fetch(`/api/lotes/${lote.id}`, { method: 'DELETE' })
     const data = await response.json()
     if (!response.ok) {
       throw new Error(
@@ -112,7 +112,7 @@ const cambiarHumedad = async (lote: any) => {
     return // el usuario canceló
   }
   try {
-    const response = await fetch(`http://127.0.0.1:5000/api/lotes/${lote.id}/humedad`, {
+    const response = await fetch(`/api/lotes/${lote.id}/humedad`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ humedad: valor })
@@ -132,7 +132,7 @@ const detalleVisible = ref(false)
 const detalle = ref<any>(null)
 
 const pedir = async (ruta: string) => {
-  const response = await fetch(`http://127.0.0.1:5000/api/${ruta}`)
+  const response = await fetch(`/api/${ruta}`)
   const data = await response.json()
   if (!response.ok) throw new Error(data.error || 'Error del servidor')
   return data

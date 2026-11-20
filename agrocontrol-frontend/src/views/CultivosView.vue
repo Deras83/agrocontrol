@@ -122,7 +122,7 @@ const form = ref<Cultivo>(formVacio())
 // Cargar lotes para el selector
 const cargarLotes = async () => {
   try {
-    const response = await fetch('http://127.0.0.1:5000/api/lotes')
+    const response = await fetch('/api/lotes')
     if (response.ok) {
       lotesList.value = await response.json()
     }
@@ -134,7 +134,7 @@ const cargarLotes = async () => {
 // Cargar cultivos desde el backend
 const cargarCultivos = async () => {
   try {
-    const response = await fetch('http://127.0.0.1:5000/api/cultivos')
+    const response = await fetch('/api/cultivos')
     if (response.ok) {
       cultivosList.value = await response.json()
     }
@@ -151,7 +151,7 @@ const guardarCultivo = async () => {
   }
 
   try {
-    const response = await fetch('http://127.0.0.1:5000/api/cultivos', {
+    const response = await fetch('/api/cultivos', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form.value)
@@ -186,7 +186,7 @@ const abrirEtapa = (cultivo: Cultivo) => {
 const guardarEtapa = async () => {
   if (!cultivoSel.value) return
   try {
-    const response = await fetch(`http://127.0.0.1:5000/api/cultivos/${cultivoSel.value.id}/etapa`, {
+    const response = await fetch(`/api/cultivos/${cultivoSel.value.id}/etapa`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ etapa: etapaNueva.value })

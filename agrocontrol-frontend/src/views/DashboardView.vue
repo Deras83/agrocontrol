@@ -9,7 +9,7 @@ import VChart from 'vue-echarts'
 
 use([CanvasRenderer, GaugeChart, BarChart, PieChart, TooltipComponent, LegendComponent, GridComponent])
 
-const API = 'http://127.0.0.1:5000/api'
+const API = '/api'
 const resumen = ref({ lotes_criticos: [] })
 const lotes = ref([])
 const diagnosticos = ref([])

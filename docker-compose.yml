@@ -1,0 +1,12 @@
+services:
+  agrocontrol:
+    build: .
+    image: agrocontrol:local
+    ports:
+      - "8080:8080"
+    environment:
+      AGROCONTROL_DB_PATH: /data/agrocontrol.db
+      AGROCONTROL_AUTO_SEED: "0"
+    volumes:
+      - ./database/agrocontrol.db:/data/agrocontrol.db
+    restart: unless-stopped
