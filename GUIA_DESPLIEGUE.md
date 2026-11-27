@@ -383,3 +383,26 @@ No hay que cambiar las consultas: el adaptador traduce los marcadores `?` a `%s`
 - Render Free se duerme a los 15 min sin tráfico; el primer acceso tarda ~1 min.
 - Supabase Free (500 MB) se pausa tras 1 semana sin actividad.
 - Para migrar tus datos actuales de SQLite a Supabase, pide un script de migración.
+
+---
+
+## 10. Pruebas automáticas de todos los endpoints (GitHub Actions)
+
+El workflow `.github/workflows/smoke.yml` prueba la API en cada push (sin login, sin
+tocar tu base de producción). Usa `tests/smoke_api.py`:
+
+- **Local (CI):** crea una BD SQLite temporal, siembra datos y prueba **todos** los
+  endpoints: lecturas, escrituras, borrados, validaciones y los 3 diagnósticos de Prolog.
+- **Remoto (opcional):** si defines la variable de repositorio `SMOKE_BASE_URL`
+  (Settings → Secrets and variables → Actions → Variables), además prueba tu app de
+  Render (solo lecturas y diagnósticos, sin borrados).
+
+Ejecutarlo a mano:
+
+```powershell
+python tests\smoke_api.py
+python tests\smoke_api.py --base-url https://tu-app.onrender.com
+```
+
+También puedes lanzarlo desde GitHub: **Actions → Smoke API → Run workflow** (campo
+`base_url` opcional).

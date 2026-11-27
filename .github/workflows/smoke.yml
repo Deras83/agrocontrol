@@ -1,0 +1,36 @@
+name: Smoke API
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "URL desplegada a probar (opcional; vacío = solo local)"
+        required: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar SWI-Prolog
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y swi-prolog-nox
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Smoke local (todos los endpoints)
+        run: python tests/smoke_api.py
+
+      - name: Smoke remoto (lecturas + diagnósticos)
+        if: ${{ vars.SMOKE_BASE_URL != '' || github.event.inputs.base_url != '' }}
+        run: python tests/smoke_api.py --base-url "${{ github.event.inputs.base_url || vars.SMOKE_BASE_URL }}"
