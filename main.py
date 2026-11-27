@@ -1,14 +1,12 @@
 """Menú de consola (Programación Estructurada): secuencia, selección (if/elif),
 iteración (while) y funciones con validación (try/except). Los datos viven en SQL,
 se usan como objetos (POO), Prolog diagnostica y los reportes son funcionales."""
-import sqlite3
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from config import DB_PATH
-from database.db_connection import obtener_conexion, crear_tablas
+from database.db_connection import INTEGRITY_ERRORS, obtener_conexion, crear_tablas
 from database import queries as q
 from models.lote import Lote
 from models.cultivo import Cultivo
@@ -51,11 +49,14 @@ def elegir(titulo, elementos):
                 print("Opción inválida.")
     return elegido
 
+ERRORES_CONTROLADOS = (ValueError, TypeError, RuntimeError) + INTEGRITY_ERRORS
+
+
 def ejecutar(accion, conn):
     """Corre una opción del menú; si falla, muestra el motivo y el programa sigue."""
     try:
         accion(conn)
-    except (ValueError, TypeError, sqlite3.IntegrityError, RuntimeError) as error:
+    except ERRORES_CONTROLADOS as error:
         print(f"No se pudo completar: {error}")
 
 def cargar(conn):
@@ -201,7 +202,7 @@ def menu_principal(conn):
             print("Opción inválida.")
     print("Hasta luego.")
 
-def iniciar(ruta=DB_PATH):
+def iniciar(ruta=None):
     conn = obtener_conexion(ruta)
     try:
         crear_tablas(conn)

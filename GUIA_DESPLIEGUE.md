@@ -351,3 +351,35 @@ fly volumes list            # ver volúmenes
 | El teléfono deja de funcionar de un día a otro | La IP de la PC cambió. Ejecuta `ipconfig` y usa la nueva. |
 | Fly no arranca | Falta el volumen o el nombre no coincide con `fly.toml`. Revisa `fly logs`. |
 | Fly creó 2 máquinas | Redesplega con `fly deploy --ha=false` y destruye la máquina sobrante. |
+
+---
+
+## 9. Despliegue gratis: Supabase (base de datos) + Render (app)
+
+### Cómo elige el motor de base de datos
+
+- **Sin** `DATABASE_URL` → SQLite local (menú, pruebas y Docker de siempre).
+- **Con** `DATABASE_URL` → PostgreSQL en Supabase.
+
+No hay que cambiar las consultas: el adaptador traduce los marcadores `?` a `%s`.
+
+### 1. Crear la base en Supabase
+
+1. Entra a https://supabase.com → **New project** (guarda la contraseña).
+2. **Project Settings → Database → Connection string → Connection pooling
+   (Transaction)**, puerto **6543**.
+3. Copia la URI `postgresql://...` y añade `?sslmode=require` si no viene.
+
+### 2. Desplegar en Render
+
+1. El código ya está en GitHub.
+2. Render → **New → Blueprint** → conecta el repo (usa `render.yaml`).
+3. En la variable `DATABASE_URL` pega la URI de Supabase (marcada como secreto).
+4. **Deploy**. La primera vez crea las tablas y siembra datos de ejemplo.
+
+### Notas
+
+- La app escucha el puerto que Render inyecta por la variable `PORT`.
+- Render Free se duerme a los 15 min sin tráfico; el primer acceso tarda ~1 min.
+- Supabase Free (500 MB) se pausa tras 1 semana sin actividad.
+- Para migrar tus datos actuales de SQLite a Supabase, pide un script de migración.

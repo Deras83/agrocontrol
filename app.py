@@ -1,6 +1,5 @@
 """API Flask de AgroControl: usa queries.py, prolog_bridge y analytics."""
 import os
-import sqlite3
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
@@ -9,7 +8,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from database import queries as q
-from database.db_connection import crear_tablas, obtener_conexion
+from database.db_connection import INTEGRITY_ERRORS, crear_tablas, obtener_conexion
 from models.aplicacion_campo import AplicacionCampo
 from models.cosecha import Cosecha
 from models.cultivo import Cultivo
@@ -34,7 +33,7 @@ def inicializar_bd():
     conn = obtener_conexion()
     try:
         crear_tablas(conn)
-        vacia = conn.execute("SELECT COUNT(*) FROM lotes").fetchone()[0] == 0
+        vacia = conn.execute("SELECT COUNT(*) AS total FROM lotes").fetchone()["total"] == 0
     finally:
         conn.close()
     if vacia and os.environ.get("AGROCONTROL_AUTO_SEED", "1") != "0":
@@ -46,9 +45,12 @@ inicializar_bd()
 
 @app.errorhandler(ValueError)
 @app.errorhandler(TypeError)
-@app.errorhandler(sqlite3.IntegrityError)
 def datos_invalidos(error):
     return jsonify({"error": str(error)}), 400
+
+
+for _error_integridad in INTEGRITY_ERRORS:
+    app.register_error_handler(_error_integridad, datos_invalidos)
 
 
 @app.errorhandler(RuntimeError)
@@ -251,7 +253,7 @@ def delete_insumo(id):
             return jsonify({"error": "El insumo no existe."}), 404
         try:
             q.eliminar_insumo(conn, nombre)
-        except sqlite3.IntegrityError:
+        except INTEGRITY_ERRORS:
             raise ValueError("No se puede eliminar: el insumo tiene aplicaciones registradas.")
     return jsonify({"message": "Insumo eliminado."})
 

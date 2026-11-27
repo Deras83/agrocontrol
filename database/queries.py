@@ -28,7 +28,9 @@ def siguiente_id(conn, tabla):
     por eso solo se aceptan nombres de una lista fija."""
     if tabla not in TABLAS_CON_ID:
         raise ValueError("Tabla no permitida.")
-    return conn.execute(f"SELECT COALESCE(MAX(id), 0) + 1 FROM {tabla}").fetchone()[0]
+    fila = conn.execute(
+        f"SELECT COALESCE(MAX(id), 0) + 1 AS siguiente FROM {tabla}").fetchone()
+    return fila["siguiente"]
 
 
 def eliminar_por_id(conn, tabla, id):

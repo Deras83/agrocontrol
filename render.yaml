@@ -1,0 +1,16 @@
+# Blueprint de Render para AgroControl.
+# La base de datos vive en Supabase (PostgreSQL); Render solo ejecuta la app.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: agrocontrol
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /
+    envVars:
+      - key: DATABASE_URL
+        sync: false          # se define en el panel de Render (secreto)
+      - key: AGROCONTROL_AUTO_SEED
+        value: "1"           # siembra datos de ejemplo solo si la BD está vacía

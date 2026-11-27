@@ -6,7 +6,8 @@ from datetime import date, timedelta
 
 from config import DB_PATH
 from database import queries as q
-from database.db_connection import obtener_conexion, crear_tablas
+from database.db_connection import (crear_tablas, es_postgres,
+                                     obtener_conexion)
 from services import analytics
 
 HOY = date.today()
@@ -102,56 +103,79 @@ TABLAS = ["diagnosticos", "registros_campo", "aplicaciones_campo", "historial_co
           "cultivos", "maquinaria", "inventario_insumos", "lotes"]  # orden seguro de borrado
 
 
+def reiniciar_secuencias(conn):
+    """Tras insertar id manuales, deja las secuencias de PostgreSQL listas."""
+    for tabla in TABLAS:
+        conn.execute(
+            f"SELECT setval(pg_get_serial_sequence('{tabla}', 'id'), "
+            f"COALESCE((SELECT MAX(id) FROM {tabla}), 0) + 1, false)")
+    conn.commit()
+
+
 def main():
-    shutil.copy(DB_PATH, DB_PATH.with_name(f"agrocontrol.db.{HOY}.bak"))  # 1. respaldo
     conn = obtener_conexion()
-    crear_tablas(conn)
-    aplic = sorted(APLICACIONES, key=lambda a: -a[3])  # orden cronologico
-    consumo = {}
-    for _, ins, dosis, _, hecha in aplic:
-        if hecha:
-            consumo[ins] = consumo.get(ins, 0) + dosis
-    stock = {i: round(x[2] - consumo.get(i, 0), 2) for i, x in enumerate(INSUMOS, 1)}
-    assert min(stock.values()) >= 0, "stock negativo"
-    with conn:  # 2. todo en una transaccion
-        for t in TABLAS:
-            conn.execute(f"DELETE FROM {t}")
-        conn.execute("DELETE FROM sqlite_sequence")
-        conn.executemany("INSERT INTO lotes VALUES (?,?,?,?,?,?)", LOTES)
-        conn.executemany("INSERT INTO inventario_insumos VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                         [(i, x[0], x[1], stock[i]) + x[3:] for i, x in enumerate(INSUMOS, 1)])
-        conn.executemany("INSERT INTO cultivos VALUES (?,?,?,?,?,?)",
-                         [(i, l, c, v, f(d), etapa(d)) for i, (l, c, v, d) in enumerate(CULTIVOS, 1)])
-        conn.executemany("INSERT INTO aplicaciones_campo VALUES (?,?,?,?,?,?)",
-                         [(i, l, ins, ds, f(d), h) for i, (l, ins, ds, d, h) in enumerate(aplic, 1)])
-        conn.executemany("INSERT INTO historial_cosechas VALUES (?,?,?,?)",
-                         [(i, l, t, f(d)) for i, (l, t, d) in enumerate(sorted(COSECHAS, key=lambda c: -c[2]), 1)])
-        conn.executemany("INSERT INTO registros_campo VALUES (?,?,?,?,?,?,?,?)",
-                         [(i, l, None, a, ds, f(d), h, ok) for i, (l, a, ds, d, h, ok) in
-                          enumerate(sorted(REGISTROS, key=lambda r: -r[3]), 1)])
-        conn.executemany("INSERT INTO diagnosticos VALUES (?,?,?,?,?,?,?)",
-                         [(i, l, t, c, r, s, f(d)) for i, (l, t, c, r, s, d) in
-                          enumerate(sorted(DIAGNOSTICOS, key=lambda x: -x[5]), 1)])
-    verificar(conn)
+    try:
+        # 1. respaldo (solo aplica a SQLite; en PostgreSQL no hay archivo local)
+        if not es_postgres(conn) and DB_PATH.exists():
+            shutil.copy(DB_PATH, DB_PATH.with_name(f"agrocontrol.db.{HOY}.bak"))
+        crear_tablas(conn)
+        aplic = sorted(APLICACIONES, key=lambda a: -a[3])  # orden cronologico
+        consumo = {}
+        for _, ins, dosis, _, hecha in aplic:
+            if hecha:
+                consumo[ins] = consumo.get(ins, 0) + dosis
+        stock = {i: round(x[2] - consumo.get(i, 0), 2) for i, x in enumerate(INSUMOS, 1)}
+        assert min(stock.values()) >= 0, "stock negativo"
+        with conn:  # 2. todo en una transaccion
+            for t in TABLAS:
+                conn.execute(f"DELETE FROM {t}")
+            if not es_postgres(conn):
+                conn.execute("DELETE FROM sqlite_sequence")
+            conn.executemany("INSERT INTO lotes VALUES (?,?,?,?,?,?)", LOTES)
+            conn.executemany("INSERT INTO inventario_insumos VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                             [(i, x[0], x[1], stock[i]) + x[3:] for i, x in enumerate(INSUMOS, 1)])
+            conn.executemany("INSERT INTO cultivos VALUES (?,?,?,?,?,?)",
+                             [(i, l, c, v, f(d), etapa(d)) for i, (l, c, v, d) in enumerate(CULTIVOS, 1)])
+            conn.executemany("INSERT INTO aplicaciones_campo VALUES (?,?,?,?,?,?)",
+                             [(i, l, ins, ds, f(d), h) for i, (l, ins, ds, d, h) in enumerate(aplic, 1)])
+            conn.executemany("INSERT INTO historial_cosechas VALUES (?,?,?,?)",
+                             [(i, l, t, f(d)) for i, (l, t, d) in enumerate(sorted(COSECHAS, key=lambda c: -c[2]), 1)])
+            conn.executemany("INSERT INTO registros_campo VALUES (?,?,?,?,?,?,?,?)",
+                             [(i, l, None, a, ds, f(d), h, ok) for i, (l, a, ds, d, h, ok) in
+                              enumerate(sorted(REGISTROS, key=lambda r: -r[3]), 1)])
+            conn.executemany("INSERT INTO diagnosticos VALUES (?,?,?,?,?,?,?)",
+                             [(i, l, t, c, r, s, f(d)) for i, (l, t, c, r, s, d) in
+                              enumerate(sorted(DIAGNOSTICOS, key=lambda x: -x[5]), 1)])
+        if es_postgres(conn):  # 3. sincroniza los id autoincrementales
+            reiniciar_secuencias(conn)
+        verificar(conn)
+    finally:
+        conn.close()
 
 
 def verificar(conn):
-    print("FK errores:", conn.execute("PRAGMA foreign_key_check").fetchall())
+    postgres = es_postgres(conn)
+    if not postgres:
+        print("FK errores:", conn.execute("PRAGMA foreign_key_check").fetchall())
     for t in TABLAS:
-        print(f"  {t}: {conn.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0]}")
+        total = conn.execute(f"SELECT COUNT(*) AS total FROM {t}").fetchone()["total"]
+        print(f"  {t}: {total}")
     for lote, cultivo, _, _ in CULTIVOS:  # cada cultivo cumple pH y suelo de Prolog
         mn, mx, suelos = PROLOG[cultivo]
         assert mn <= LOTES[lote - 1][4] <= mx and LOTES[lote - 1][3] in suelos, f"{NOM[lote]}: no cumple"
     hum = [l[5] for l in LOTES]
     print("Humedad promedio:", round(sum(hum) / len(hum), 1), "| criticos:", sum(h < 30 for h in hum),
           "| atencion:", sum(30 <= h < 50 for h in hum), "| optimos:", sum(h >= 50 for h in hum))
-    print("Toneladas por lote:", [tuple(r) for r in conn.execute(
-        "SELECT l.nombre, ROUND(SUM(c.toneladas_recolectadas),1) FROM historial_cosechas c "
+    redondeo = ("ROUND((SUM(c.toneladas_recolectadas))::numeric, 1)" if postgres
+                else "ROUND(SUM(c.toneladas_recolectadas), 1)")
+    print("Toneladas por lote:", [(r["nombre"], float(r["total"])) for r in conn.execute(
+        f"SELECT l.nombre AS nombre, {redondeo} AS total FROM historial_cosechas c "
         "JOIN lotes l ON l.id = c.lote_id GROUP BY l.id")])
-    print("Agotados:", [r[0] for r in conn.execute("SELECT nombre_producto FROM inventario_insumos WHERE stock = 0")])
-    print("Stock bajo (<10):", [r[0] for r in conn.execute(
+    print("Agotados:", [r["nombre_producto"] for r in conn.execute(
+        "SELECT nombre_producto FROM inventario_insumos WHERE stock = 0")])
+    print("Stock bajo (<10):", [r["nombre_producto"] for r in conn.execute(
         "SELECT nombre_producto FROM inventario_insumos WHERE stock > 0 AND stock < 10")])
-    print("Ultimos 4 diagnosticos:", [(r[0], r[1]) for r in conn.execute(
+    print("Ultimos 4 diagnosticos:", [(r["tipo"], r["severidad"]) for r in conn.execute(
         "SELECT tipo, severidad FROM diagnosticos ORDER BY id DESC LIMIT 4")])
     finca = q.cargar_finca(conn, "Mi finca")  # la finca debe cargar sin errores
     print("Resumen (como /api/resumen):", analytics.resumen_finca(finca, 1.0))
