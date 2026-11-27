@@ -15,9 +15,10 @@
       <el-table-column prop="variedad" label="Variedad" />
       <el-table-column prop="fecha_siembra" label="Fecha de Siembra" />
       <el-table-column prop="etapa" label="Etapa" />
-      <el-table-column label="Acciones" width="150">
+      <el-table-column label="Acciones" width="240">
         <template #default="{ row }">
           <el-button size="small" type="success" plain @click="abrirEtapa(row)">Cambiar etapa</el-button>
+          <el-button size="small" type="danger" plain @click="abrirEliminar(row)">Eliminar</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -83,6 +84,30 @@
         <el-button type="primary" @click="guardarEtapa">Guardar</el-button>
       </template>
     </el-dialog>
+
+    <!-- Modal para eliminar un cultivo pidiendo motivo -->
+    <el-dialog
+      v-model="eliminarVisible"
+      :title="`Eliminar cultivo: ${cultivoEliminar?.tipo_cultivo} (${cultivoEliminar?.nombre_lote})`"
+      width="420px"
+    >
+      <el-form label-width="120px">
+        <el-form-item label="Motivo">
+          <el-select v-model="motivoEliminar" style="width: 100%">
+            <el-option label="Perdido" value="perdido" />
+            <el-option label="Error de registro" value="error" />
+            <el-option label="Cosecha total" value="cosecha_total" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="Nota (opcional)">
+          <el-input v-model="notaEliminar" type="textarea" placeholder="Detalle adicional..." />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="eliminarVisible = false">Cancelar</el-button>
+        <el-button type="danger" @click="confirmarEliminar">Eliminar</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -105,6 +130,8 @@ interface Cultivo {
   fecha_siembra: string
   etapa: string
 }
+
+type MotivoEliminacion = 'perdido' | 'error' | 'cosecha_total'
 
 const dialogVisible = ref(false)
 const cultivosList = ref<Cultivo[]>([])
@@ -199,6 +226,42 @@ const guardarEtapa = async () => {
   } catch (error) {
     console.error(error)
     ElMessage.error(error instanceof Error ? error.message : 'No se pudo cambiar la etapa.')
+  }
+}
+
+// Eliminar un cultivo pidiendo motivo; registra la baja en bitácora
+const eliminarVisible = ref(false)
+const cultivoEliminar = ref<Cultivo | null>(null)
+const motivoEliminar = ref<MotivoEliminacion>('perdido')
+const notaEliminar = ref('')
+
+const abrirEliminar = (cultivo: Cultivo) => {
+  cultivoEliminar.value = cultivo
+  motivoEliminar.value = 'perdido'
+  notaEliminar.value = ''
+  eliminarVisible.value = true
+}
+
+const confirmarEliminar = async () => {
+  const cultivo = cultivoEliminar.value
+  if (!cultivo || cultivo.id == null) return
+  try {
+    const response = await fetch(`/api/cultivos/${cultivo.id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ motivo: motivoEliminar.value, nota: notaEliminar.value.trim() })
+    })
+    const data = await response.json()
+    if (!response.ok) throw new Error(data.error || 'Error al eliminar')
+    ElMessage.success('Cultivo eliminado y registrado en bitácora.')
+    eliminarVisible.value = false
+    cultivoEliminar.value = null
+    notaEliminar.value = ''
+    motivoEliminar.value = 'perdido'
+    cargarCultivos()
+  } catch (error) {
+    console.error(error)
+    ElMessage.error(error instanceof Error ? error.message : 'No se pudo eliminar el cultivo.')
   }
 }
 

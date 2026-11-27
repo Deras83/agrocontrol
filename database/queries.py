@@ -74,6 +74,9 @@ def eliminar_lote(conn, id):
 
 
 # ------------------------------------------------------------- CULTIVOS
+MOTIVOS_ELIMINACION = ("perdido", "error", "cosecha_total")
+
+
 def guardar_cultivo(conn, lote_id, cultivo):
     """Un lote tiene un solo cultivo. En la base se guarda la fecha de siembra,
     no los días: se calcula a partir de los días del objeto."""
@@ -88,6 +91,46 @@ def guardar_cultivo(conn, lote_id, cultivo):
             (lote_id, cultivo.nombre, cultivo.variedad,
              fecha_siembra.isoformat(), cultivo.etapa_fenologica),
         )
+
+
+def eliminar_cultivo(conn, id, motivo, nota="", fecha=None):
+    """Elimina un cultivo (borrado duro) y registra la baja en la bitácora.
+
+    El registro de bitácora usa actividad='otro' (CHECK cerrado), se marca
+    completado y describe el motivo. Es atómico: si el borrado falla, se
+    revierte también el registro. Devuelve None si el cultivo no existe.
+    """
+    motivo = str(motivo).strip().lower()
+    if motivo not in MOTIVOS_ELIMINACION:
+        raise ValueError(
+            f"motivo inválido. Opciones: {', '.join(MOTIVOS_ELIMINACION)}.")
+    fila = conn.execute(
+        "SELECT c.id, c.lote_id, c.tipo_cultivo, c.variedad, c.etapa, "
+        "l.nombre AS nombre_lote FROM cultivos c "
+        "JOIN lotes l ON c.lote_id = l.id WHERE c.id = ?", (id,)).fetchone()
+    if fila is None:
+        return None
+    if fecha is None:
+        fecha = date.today()
+    elif isinstance(fecha, str):
+        fecha = date.fromisoformat(fecha[:10])
+    nota = str(nota or "").strip()
+    descripcion = (
+        f"Eliminación de cultivo {fila['tipo_cultivo']}"
+        + (f" (variedad {fila['variedad']})" if fila["variedad"] else "")
+        + f" en lote {fila['nombre_lote']}; motivo: {motivo}."
+        + (f" Nota: {nota}." if nota else ""))
+    bitacora_id = siguiente_id(conn, "registros_campo")
+    with conn:
+        conn.execute(
+            "INSERT INTO registros_campo (id, lote_id, maquinaria_id, actividad, "
+            "descripcion, fecha, horas_trabajadas, completado) "
+            "VALUES (?, ?, NULL, 'otro', ?, ?, 0, 1)",
+            (bitacora_id, fila["lote_id"], descripcion, fecha.isoformat()))
+        conn.execute("DELETE FROM cultivos WHERE id = ?", (id,))
+    return {"cultivo_id": id, "lote_id": fila["lote_id"],
+            "tipo_cultivo": fila["tipo_cultivo"], "motivo": motivo, "nota": nota,
+            "bitacora_id": bitacora_id, "fecha": fecha.isoformat()}
 
 
 def cargar_cultivo(conn, lote_id):

@@ -172,8 +172,26 @@ def create_cultivo():
                       str(d.get("etapa") or "germinacion").strip().lower(), dias)
     lote = lote_de(d)
     with db() as conn:
+        if q.cargar_cultivo(conn, lote.id) is not None:
+            raise ValueError("El lote ya tiene un cultivo.")
         q.guardar_cultivo(conn, lote.id, cultivo)
     return jsonify({"message": "Cultivo registrado"}), 201
+
+
+@app.route("/api/cultivos/<int:id>", methods=["DELETE"])
+def delete_cultivo(id):
+    d = datos("motivo")
+    motivo = str(d["motivo"]).strip().lower()
+    if motivo not in q.MOTIVOS_ELIMINACION:
+        raise ValueError(
+            f"motivo inválido. Opciones: {', '.join(q.MOTIVOS_ELIMINACION)}.")
+    nota = str(d.get("nota") or "").strip()
+    with db() as conn:
+        resultado = q.eliminar_cultivo(conn, id, motivo, nota, fecha_de(d))
+    if resultado is None:
+        return jsonify({"error": "El cultivo no existe."}), 404
+    return jsonify({"message": "Cultivo eliminado y registrado en bitácora.",
+                    **resultado})
 
 
 @app.route("/api/cultivos/<int:id>/etapa", methods=["PUT"])
